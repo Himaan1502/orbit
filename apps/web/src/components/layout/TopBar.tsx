@@ -1,13 +1,15 @@
 'use client';
 
-import { Search, Sun, Moon, Bell } from 'lucide-react';
+import { Search, Sun, Moon, Bell, LogOut } from 'lucide-react';
 import { useThemeStore } from '@/stores/theme';
 import { useSidebarStore } from '@/stores/sidebar';
+import { useSession } from '@/hooks/useSession';
 import { cn } from '@/lib/utils';
 
 export function TopBar() {
   const { theme, toggleTheme } = useThemeStore();
   const { isCollapsed } = useSidebarStore();
+  const { isAuthenticated, email } = useSession();
 
   return (
     <header
@@ -66,6 +68,31 @@ export function TopBar() {
         >
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
+
+        {/* Account */}
+        {isAuthenticated && (
+          <div className="ml-2 flex items-center gap-2 border-l border-[var(--border)] pl-3">
+            <span
+              className="hidden max-w-[180px] truncate font-mono text-xs text-[var(--text-secondary)] sm:inline"
+              title={email}
+            >
+              {email}
+            </span>
+            <form action="/logout" method="post">
+              <button
+                type="submit"
+                className={cn(
+                  'flex h-9 w-9 items-center justify-center rounded-button',
+                  'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+                  'transition-colors duration-150 ease-out'
+                )}
+                aria-label="Sign out"
+              >
+                <LogOut size={18} />
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </header>
   );
