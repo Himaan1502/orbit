@@ -34,14 +34,13 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
+    // OAuth2 resource server — validates OIDC access tokens (RS256) against the
+    // self-hosted authorization server's JWKS. See ADR-004. No token issuance here.
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+
     // Database
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core")
-
-    // JWT
-    implementation("io.jsonwebtoken:jjwt-api:0.12.5")
-    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.5")
-    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.5")
 
     // Observability
     implementation("io.micrometer:micrometer-registry-prometheus")

@@ -13,6 +13,12 @@ spring:
       password: ${REDIS_PASSWORD}
   jpa:
     show-sql: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Full OIDC discovery + issuer-claim validation in production.
+          issuer-uri: ${OIDC_ISSUER_URI}
 
 management:
   endpoint:

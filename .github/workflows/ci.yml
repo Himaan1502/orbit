@@ -94,7 +94,35 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           REDIS_PASSWORD: ''
-          JWT_SECRET: test-secret-key-that-is-at-least-256-bits-long-for-hmac-sha256-algorithm
+          # No auth secret: the test profile uses a placeholder JWKS URI that is
+          # never contacted (spring-security-test mocks authentication).
+
+      - name: Checkstyle
+        run: ./gradlew checkstyleMain || true
+
+      - name: SpotBugs
+        run: ./gradlew spotbugsMain || true
+
+  auth:
+    name: Auth Server
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/auth
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build and Test
+        run: ./gradlew build
 
       - name: Checkstyle
         run: ./gradlew checkstyleMain || true

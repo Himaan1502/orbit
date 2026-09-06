@@ -12,6 +12,14 @@ spring:
     show-sql: false
   flyway:
     clean-disabled: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Placeholder JWKS URI — never contacted. Tests authenticate with
+          # spring-security-test (@WithMockUser / SecurityMockMvcRequestPostProcessors.jwt()),
+          # so the decoder is built lazily and no auth server is required.
+          jwk-set-uri: http://localhost:9000/oauth2/jwks
 
 logging:
   level:

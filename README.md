@@ -12,6 +12,7 @@ ORBIT is a modular platform for career planning, skill development, project trac
 |-------|-----------|
 | Frontend | Next.js 14 (App Router) · TypeScript · Tailwind CSS · shadcn/ui |
 | Backend | Java 21 · Spring Boot 3.2 · Spring Security · Spring Data JPA |
+| Auth | Self-hosted OIDC — Spring Authorization Server (`apps/auth`) |
 | Database | PostgreSQL 16 · Flyway migrations |
 | Cache | Redis 7 |
 | Build | Gradle (Kotlin DSL) · npm |
@@ -54,7 +55,20 @@ Wait for services to be healthy:
 docker compose ps
 ```
 
-### 3. Start the backend
+### 3. Start the auth server (OIDC provider)
+
+```bash
+cd apps/auth
+./gradlew bootRun
+```
+
+Runs at **http://localhost:9000**. On startup it logs a generated dev-user
+password (username `dev@orbit.local`) unless `AUTH_DEV_PASSWORD` is set.
+
+- OIDC discovery: `GET http://localhost:9000/.well-known/openid-configuration`
+- JWKS: `GET http://localhost:9000/oauth2/jwks`
+
+### 4. Start the backend
 
 ```bash
 cd apps/api
@@ -67,7 +81,7 @@ The API will be available at **http://localhost:8080**.
 - Actuator: `GET http://localhost:8080/actuator/health`
 - API docs: `GET http://localhost:8080/api/swagger-ui`
 
-### 4. Start the frontend
+### 5. Start the frontend
 
 ```bash
 cd apps/web
@@ -77,13 +91,13 @@ npm run dev
 
 The app will be available at **http://localhost:3000**.
 
-### 5. Full Docker setup (alternative)
+### 6. Full Docker setup (alternative)
 
 ```bash
 docker compose up
 ```
 
-This starts PostgreSQL, Redis, the backend API, and the frontend.
+This starts PostgreSQL, Redis, the auth server, the backend API, and the frontend.
 
 ---
 
@@ -101,22 +115,27 @@ ORBIT/
 │   │   │   ├── stores/         # Zustand state stores
 │   │   │   └── test/           # Test setup
 │   │   └── package.json
-│   └── api/                    # Spring Boot backend
-│       ├── src/main/java/com/orbit/platform/
-│       │   ├── common/         # Shared infrastructure
-│       │   │   ├── config/     # Security, CORS, Redis, Jackson
-│       │   │   ├── controller/ # Health endpoints
-│       │   │   ├── dto/        # API response envelopes
-│       │   │   ├── exception/  # Exception handling
-│       │   │   ├── model/      # Base entity
-│       │   │   ├── security/   # JWT infrastructure
-│       │   │   └── util/       # Request ID filter
-│       │   └── identity/       # User domain module
-│       │       ├── model/
-│       │       └── repository/
-│       ├── src/main/resources/
-│       │   ├── db/migration/   # Flyway SQL migrations
-│       │   └── application*.yml
+│   ├── api/                    # Spring Boot backend (OAuth2 resource server)
+│   │   ├── src/main/java/com/orbit/platform/
+│   │   │   ├── common/         # Shared infrastructure
+│   │   │   │   ├── config/     # Security, CORS, Redis, Jackson
+│   │   │   │   ├── controller/ # Health endpoints
+│   │   │   │   ├── dto/        # API response envelopes
+│   │   │   │   ├── exception/  # Exception handling
+│   │   │   │   ├── model/      # Base entity
+│   │   │   │   ├── security/   # JWT-claim → authorities conversion
+│   │   │   │   └── util/       # Request ID filter
+│   │   │   └── identity/       # User domain module
+│   │   │       ├── model/
+│   │   │       └── repository/
+│   │   ├── src/main/resources/
+│   │   │   ├── db/migration/   # Flyway SQL migrations
+│   │   │   └── application*.yml
+│   │   └── build.gradle.kts
+│   └── auth/                   # Spring Authorization Server (self-hosted OIDC)
+│       ├── src/main/java/com/orbit/auth/
+│       │   └── config/         # Authorization server + login security config
+│       ├── src/main/resources/application.yml
 │       └── build.gradle.kts
 ├── packages/
 │   ├── ui/                     # Shared UI components (future)
@@ -157,7 +176,9 @@ ORBIT/
 | `npm run test` | Run Vitest tests |
 | `npm run test:coverage` | Tests with coverage |
 
-### Backend (apps/api)
+### Backend (apps/api) and Auth server (apps/auth)
+
+Both are standalone Gradle projects — run from their own directory.
 
 | Command | Description |
 |---------|-------------|
@@ -178,6 +199,16 @@ ORBIT/
 | `docker compose down` | Stop all services |
 | `docker compose logs -f orbit-api` | Follow API logs |
 
+### Service ports
+
+| Service | Port |
+|---------|------|
+| `orbit-web` | 3000 |
+| `orbit-api` | 8080 |
+| `orbit-auth` | 9000 |
+| `orbit-db` (PostgreSQL) | 5432 |
+| `orbit-redis` | 6379 |
+
 ---
 
 ## Environment Variables
@@ -190,9 +221,15 @@ See [`.env.example`](.env.example) for all available variables.
 | `POSTGRES_USER` | `orbit_user` | Database user |
 | `POSTGRES_PASSWORD` | `orbit_pass` | Database password |
 | `REDIS_PASSWORD` | `redis_pass` | Redis password |
-| `JWT_SECRET` | (dev key) | JWT signing secret (≥256 bits) |
+| `OIDC_ISSUER_URI` | `http://localhost:9000` | OIDC provider issuer (prod: discovery + `iss` validation) |
+| `OIDC_JWK_SET_URI` | `http://localhost:9000/oauth2/jwks` | JWKS endpoint the API validates token signatures against (dev/default) |
+| `AUTH_DEV_USER` | `dev@orbit.local` | Auth server dev-login username |
+| `AUTH_DEV_PASSWORD` | (generated + logged) | Auth server dev-login password; set for a stable login |
 | `SPRING_PROFILES_ACTIVE` | `dev` | Spring profile |
 | `CORS_ORIGINS` | `http://localhost:3000` | Allowed CORS origins |
+
+No shared token-signing secret exists: the auth server signs with an RSA key and
+the API verifies via the JWKS endpoint. See [ADR-004](docs/adr/ADR-004-oidc-authentication.md).
 
 ---
 
@@ -226,7 +263,7 @@ See [Design System](docs/design/ORBIT_Design_System.md) and [ADR-007](docs/adr/A
 | [ADR-001](docs/adr/ADR-001-modular-monolith-architecture.md) | Modular monolith architecture |
 | [ADR-002](docs/adr/ADR-002-postgresql-system-of-record.md) | PostgreSQL as system of record |
 | [ADR-003](docs/adr/ADR-003-rest-api-conventions.md) | REST API conventions |
-| [ADR-004](docs/adr/ADR-004-jwt-authentication.md) | JWT-based authentication |
+| [ADR-004](docs/adr/ADR-004-oidc-authentication.md) | OIDC authentication (self-hosted Spring Authorization Server) |
 | [ADR-005](docs/adr/ADR-005-redis-usage-boundaries.md) | Redis usage boundaries |
 | [ADR-006](docs/adr/ADR-006-nextjs-frontend-framework.md) | Next.js frontend framework |
 | [ADR-007](docs/adr/ADR-007-deep-space-design-tokens.md) | Deep Space design tokens |

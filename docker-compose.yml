@@ -36,6 +36,38 @@ services:
     networks:
       - orbit-network
 
+  # Self-hosted OIDC provider (Spring Authorization Server) — see ADR-004.
+  # No external SaaS dependency; issues/validates its own RS256-signed tokens.
+  orbit-auth:
+    build:
+      context: ./apps/auth
+      dockerfile: Dockerfile
+    container_name: orbit-auth
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      AUTH_SERVER_PORT: 9000
+      # Issuer must be reachable under the SAME URL from the browser and from
+      # orbit-api. In this compose file both use http://localhost:9000: the
+      # browser hits the published port, and orbit-api validates via
+      # OIDC_JWK_SET_URI below (signature only, no discovery call).
+      OIDC_ISSUER_URI: http://localhost:9000
+      WEB_REDIRECT_URI: http://localhost:3000/auth/callback
+      WEB_POST_LOGOUT_URI: http://localhost:3000
+      AUTH_DEV_USER: dev@orbit.local
+      # AUTH_DEV_PASSWORD intentionally unset: the server generates a random
+      # password on startup and logs it (Spring Boot style). Set it explicitly
+      # via a .env file for a stable local login.
+    ports:
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9000/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - orbit-network
+
   orbit-api:
     build:
       context: ./apps/api
@@ -51,7 +83,9 @@ services:
       REDIS_HOST: orbit-redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass}
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-that-is-at-least-256-bits-long-for-hmac-sha256-algorithm}
+      # Resource server validates tokens against the auth server's JWKS.
+      # Reached over the compose network; no shared secret.
+      OIDC_JWK_SET_URI: http://orbit-auth:9000/oauth2/jwks
       CORS_ORIGINS: http://localhost:3000
     ports:
       - "8080:8080"
@@ -60,8 +94,10 @@ services:
         condition: service_healthy
       orbit-redis:
         condition: service_healthy
+      orbit-auth:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
       interval: 15s
       timeout: 5s
       retries: 5
