@@ -46,6 +46,13 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: dev
       AUTH_SERVER_PORT: 9000
+      # Persistence for clients / authorizations / consent / signing keys /
+      # identity — see ADR-011, ADR-012. Own `auth` schema in the shared DB.
+      DB_HOST: orbit-db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-orbit_db}
+      DB_USERNAME: ${POSTGRES_USER:-orbit_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-orbit_pass}
       # Issuer must be reachable under the SAME URL from the browser and from
       # orbit-api. In this compose file both use http://localhost:9000: the
       # browser hits the published port, and orbit-api validates via
@@ -53,18 +60,25 @@ services:
       OIDC_ISSUER_URI: http://localhost:9000
       WEB_REDIRECT_URI: http://localhost:3000/auth/callback
       WEB_POST_LOGOUT_URI: http://localhost:3000
+      # Confidential client (the BFF) — must match orbit-web's WEB_CLIENT_SECRET.
+      WEB_CLIENT_SECRET: ${WEB_CLIENT_SECRET:-orbit-local-dev-web-client-secret-change-me}
+      # Seals signing-key private material at rest (ADR-011 §3). Local default;
+      # a real secret in every other environment.
+      AUTH_KEYSTORE_SECRET: ${AUTH_KEYSTORE_SECRET:-orbit-local-dev-keystore-secret-change-me}
       AUTH_DEV_USER: dev@orbit.local
-      # AUTH_DEV_PASSWORD intentionally unset: the server generates a random
-      # password on startup and logs it (Spring Boot style). Set it explicitly
-      # via a .env file for a stable local login.
+      # AUTH_DEV_PASSWORD: set for a stable local login; unset skips the seed.
+      AUTH_DEV_PASSWORD: ${AUTH_DEV_PASSWORD:-}
     ports:
       - "9000:9000"
+    depends_on:
+      orbit-db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:9000/actuator/health"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 40s
     networks:
       - orbit-network
 
@@ -110,19 +124,38 @@ services:
       context: ./apps/web
       dockerfile: Dockerfile
     container_name: orbit-web
+    environment:
+      NODE_ENV: production
+      # BFF / OIDC — see ADR-013. `ISSUER` is what the browser sees (redirects,
+      # `iss` claim); `INTERNAL_ISSUER` / `API_BASE_URL` are compose-network
+      # hostnames the Next server uses for token, JWKS, and API calls.
+      OIDC_ISSUER_URI: http://localhost:9000
+      OIDC_INTERNAL_ISSUER_URI: http://orbit-auth:9000
+      WEB_CLIENT_ID: orbit-web
+      WEB_CLIENT_SECRET: ${WEB_CLIENT_SECRET:-orbit-local-dev-web-client-secret-change-me}
+      WEB_REDIRECT_URI: http://localhost:3000/auth/callback
+      WEB_POST_LOGOUT_URI: http://localhost:3000
+      API_BASE_URL: http://orbit-api:8080
+      # Encrypts the session cookie (AES-256-GCM). Local default; real secret elsewhere.
+      SESSION_SECRET: ${SESSION_SECRET:-orbit-local-dev-session-secret-change-me-please}
+      # Served over http locally, so the Secure cookie flag must be off.
+      WEB_SECURE_COOKIES: "false"
     ports:
       - "3000:3000"
     depends_on:
       orbit-api:
         condition: service_healthy
+      orbit-auth:
+        condition: service_healthy
     healthcheck:
-      # 127.0.0.1, not localhost: busybox wget resolves localhost to ::1 first
-      # and does not fall back to IPv4, while the server listens on 0.0.0.0 (v4).
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      # /api/health is exempt from the auth middleware (which would 307 "/" to
+      # sign-in). 127.0.0.1, not localhost: busybox wget resolves localhost to
+      # ::1 first and does not fall back to IPv4; the server listens on 0.0.0.0.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 40s
     networks:
       - orbit-network
 

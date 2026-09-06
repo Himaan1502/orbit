@@ -50,7 +50,32 @@ output, not by inspecting files.
 | Docker Compose up | ✅ | 2026-09-06 — `docker compose up -d` → `docker compose ps` shows all 5 (`orbit-db`, `orbit-redis`, `orbit-auth`, `orbit-api`, `orbit-web`) `Up (healthy)`; web `/`, api + auth `/actuator/health` all 200 |
 | CI configuration is valid | ✅ | 2026-09-06 — GitHub Actions run [#34048695491](https://github.com/Himaan1502/orbit/actions/runs/34048695491) on `main`: Frontend, Backend, Auth Server jobs all green (cache-service warnings only, non-blocking) |
 
+### Milestone 1 (Identity) — verified 2026-09-07
+
+Every row checked by running the command / driving the flow in a session.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Persistent OIDC signing keys | ✅ | `auth.signing_keys` (RSA, private key AES-256-GCM sealed). `docker compose restart orbit-auth` → JWKS `kid` unchanged and a token issued **before** the restart still returns 200 from `apps/api`. [ADR-011](docs/adr/ADR-011-authorization-server-persistence.md) |
+| Persistent client / consent / authorization store | ✅ | `JdbcRegisteredClientRepository` + `JdbcOAuth2AuthorizationService` + `JdbcOAuth2AuthorizationConsentService`, `auth` schema, Flyway V1. Refresh tokens survive restart. |
+| Real registration / signup | ✅ | `auth.users` (BCrypt-12), server-rendered `/signup` + `POST /register`, email-uniqueness + validation, audit events (`auth.auth_events`), in-memory rate limit + lockout. [ADR-012](docs/adr/ADR-012-identity-and-registration-model.md) |
+| Frontend login + signup + logout wired | ✅ | Next.js BFF: `/login` `/signup` `/auth/callback` `/logout`, PKCE + confidential client, AES-256-GCM `HttpOnly` session cookie, transparent refresh in `/api/orbit/*` proxy. [ADR-013](docs/adr/ADR-013-frontend-session-and-bff.md) |
+| Full authed flow through a browser | ✅ | Playwright E2E vs the compose stack: signup → login → callback → `GET /api/orbit/me` (200) → create objective (201) → reload keeps session → logout bounces to sign-in. |
+| Server-side resource-ownership enforcement | ✅ | `orbit.objectives` + `/api/v1/objectives`; ownership checked in `ObjectiveService` on every op. Live: user B GET/PATCH/DELETE of user A's objective → real `404`. `apps/api` `ObjectiveOwnershipTest`. |
+| Hermetic test suite (Testcontainers) | ✅ | `apps/api` (PG + Redis) + `apps/auth` (PG), singleton-container pattern. `application-test.yml` localhost / Redis-password assumptions removed. CI service containers removed. api 8 tests, auth 11 tests, web 3 — 0 failures. |
+| `docker compose build` + `up` (all 5) | ✅ | 2026-09-07 — clean `down` → `build` (all 3 images) → `up -d` → `docker compose ps` shows `orbit-db` `orbit-redis` `orbit-auth` `orbit-api` `orbit-web` all `Up (healthy)`. |
+| `apps/auth` build + tests | ✅ | `./gradlew clean build` — `BUILD SUCCESSFUL`, 11 tests, Checkstyle 0, SpotBugs 0. |
+| `apps/api` build + tests | ✅ | `./gradlew clean build` — `BUILD SUCCESSFUL`, 8 tests, Checkstyle 0, SpotBugs 0. |
+| `apps/web` build / lint / format | ✅ | `npm run build` (22 routes), `lint` clean, `format:check` clean, `type-check` clean, `test` 3/3. |
+
+Not in scope for M1 and still open: email verification, password reset, MFA,
+signing-key rotation, Redis-backed distributed rate limiting, ADMIN role.
+See [deferred-items.md](docs/engineering/deferred-items.md).
+
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
-[ADR-004](docs/adr/ADR-004-oidc-authentication.md).
+[ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:
+[ADR-011](docs/adr/ADR-011-authorization-server-persistence.md),
+[ADR-012](docs/adr/ADR-012-identity-and-registration-model.md),
+[ADR-013](docs/adr/ADR-013-frontend-session-and-bff.md).
 
 Known deferrals: [docs/engineering/deferred-items.md](docs/engineering/deferred-items.md).

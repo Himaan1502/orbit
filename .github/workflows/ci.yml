@@ -47,29 +47,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/api
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: orbit_db
-          POSTGRES_USER: orbit_user
-          POSTGRES_PASSWORD: orbit_pass
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -82,20 +59,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      # PostgreSQL + Redis are started by Testcontainers inside the test JVM
+      # (ubuntu-latest runners ship a Docker daemon). No service containers, no
+      # localhost / password assumptions — see docs/engineering/deferred-items.md.
       - name: Build and Test
         run: ./gradlew build
         env:
           SPRING_PROFILES_ACTIVE: test
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_NAME: orbit_db
-          DB_USERNAME: orbit_user
-          DB_PASSWORD: orbit_pass
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          REDIS_PASSWORD: ''
-          # No auth secret: the test profile uses a placeholder JWKS URI that is
-          # never contacted (spring-security-test mocks authentication).
 
       - name: Checkstyle
         run: ./gradlew checkstyleMain || true
@@ -121,8 +91,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      # PostgreSQL is started by Testcontainers inside the test JVM.
       - name: Build and Test
         run: ./gradlew build
+        env:
+          SPRING_PROFILES_ACTIVE: test
 
       - name: Checkstyle
         run: ./gradlew checkstyleMain || true

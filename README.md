@@ -62,8 +62,15 @@ cd apps/auth
 ./gradlew bootRun
 ```
 
-Runs at **http://localhost:9000**. On startup it logs a generated dev-user
-password (username `dev@orbit.local`) unless `AUTH_DEV_PASSWORD` is set.
+Runs at **http://localhost:9000**. Needs `orbit-db` up (it owns the `auth`
+schema — clients, consent, signing keys, `auth.users`; see
+[ADR-011](docs/adr/ADR-011-authorization-server-persistence.md),
+[ADR-012](docs/adr/ADR-012-identity-and-registration-model.md)). The signing key
+is generated once and persisted, so restarts don't invalidate issued tokens.
+
+Register an account at **http://localhost:9000/signup**, or set
+`AUTH_DEV_PASSWORD` for a seeded `dev@orbit.local` login. `AUTH_KEYSTORE_SECRET`
+and `WEB_CLIENT_SECRET` have local-dev defaults; override them everywhere else.
 
 - OIDC discovery: `GET http://localhost:9000/.well-known/openid-configuration`
 - JWKS: `GET http://localhost:9000/oauth2/jwks`
@@ -86,10 +93,15 @@ The API will be available at **http://localhost:8080**.
 ```bash
 cd apps/web
 npm install
+cp .env.example .env.local   # SESSION_SECRET, WEB_CLIENT_SECRET (must match apps/auth), …
 npm run dev
 ```
 
-The app will be available at **http://localhost:3000**.
+The app is at **http://localhost:3000**. It runs a Backend-for-Frontend
+([ADR-013](docs/adr/ADR-013-frontend-session-and-bff.md)): the browser holds
+only an encrypted `HttpOnly` session cookie, the Next.js server holds the OIDC
+tokens and proxies API calls under `/api/orbit/*`. Any page redirects to
+sign-in; `/signup` starts registration.
 
 ### 6. Full Docker setup (alternative)
 
@@ -125,9 +137,8 @@ ORBIT/
 │   │   │   │   ├── model/      # Base entity
 │   │   │   │   ├── security/   # JWT-claim → authorities conversion
 │   │   │   │   └── util/       # Request ID filter
-│   │   │   └── identity/       # User domain module
-│   │   │       ├── model/
-│   │   │       └── repository/
+│   │   │   ├── identity/       # User domain: JIT provisioning, /api/v1/me
+│   │   │   └── objectives/     # First ownership-checked resource (/api/v1/objectives)
 │   │   ├── src/main/resources/
 │   │   │   ├── db/migration/   # Flyway SQL migrations
 │   │   │   └── application*.yml
