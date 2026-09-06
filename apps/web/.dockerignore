@@ -1,0 +1,19 @@
+# Keep the build context small and let the image's own `npm ci` own node_modules
+node_modules
+.next
+out
+coverage
+
+# Never bake local env / secrets into the image
+.env
+.env.local
+.env.*.local
+
+# VCS / tooling / logs
+.git
+.gitignore
+*.log
+npm-debug.log*
+Dockerfile
+.dockerignore
+README.md

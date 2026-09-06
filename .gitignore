@@ -34,9 +34,12 @@ node_modules/
 Thumbs.db
 ehthumbs.db
 
-# Logs
+# Logs (incl. redirected bootRun output — the auth server logs a generated
+# dev-user password to stdout on startup, so keep these out of git)
 *.log
 logs/
+nohup.out
+*.out
 
 # Test & Coverage
 coverage/
