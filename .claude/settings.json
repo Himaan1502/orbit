@@ -19,5 +19,6 @@
       "Read(./.env)",
       "Read(./.env.local)"
     ]
-  }
+  },
+  "includeCoAuthoredBy": false
 }
