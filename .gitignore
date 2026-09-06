@@ -69,3 +69,7 @@ build/
 *.bak
 *.tmp
 .cache/
+
+# Agent skills — third-party content, reinstalled via manifest, not tracked
+.agent/skills/
+.claude/skills/
