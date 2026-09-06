@@ -5,11 +5,20 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import lombok.Builder;
 
+/**
+ * ORBIT domain profile for a user (Blueprint §7.1).
+ *
+ * <p>The {@code id} equals the OIDC {@code sub} claim, which equals
+ * {@code auth.users.id} in the auth server. This table holds <strong>no
+ * credentials</strong> — the API performs no password verification (ADR-004 §1).
+ * Rows are provisioned just-in-time on first authenticated request
+ * (ADR-012 §3, {@code CurrentUserService}).
+ */
 @Entity
 @Table(name = "users", schema = "orbit")
 @Getter
@@ -21,9 +30,6 @@ public class User extends BaseEntity {
 
     @Column(name = "email", unique = true, nullable = false, length = 255)
     private String email;
-
-    @Column(name = "password_hash", nullable = false, length = 255)
-    private String passwordHash;
 
     @Column(name = "display_name", length = 200)
     private String displayName;

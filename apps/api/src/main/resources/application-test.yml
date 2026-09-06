@@ -1,21 +1,12 @@
 spring:
-  datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:orbit_db}
-    username: ${DB_USERNAME:orbit_user}
-    password: ${DB_PASSWORD:orbit_pass}
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      # Empty default is correct for CI, where the `redis` service container runs
-      # with no password. For a local `./gradlew test` against docker-compose
-      # (Redis started with --requirepass), export REDIS_PASSWORD=redis_pass.
-      # No test connects to Redis today, so a mismatch is currently harmless.
-      # Making the suite hermetic (Testcontainers for Postgres + Redis) is a
-      # Milestone 1 item — see docs/engineering/deferred-items.md.
-      password: ${REDIS_PASSWORD:}
+  # PostgreSQL and Redis are provided by Testcontainers via the test base class
+  # (AbstractApiIntegrationTest) — the suite is hermetic on any machine with a
+  # Docker daemon (Milestone 1 objective 7). No localhost assumptions, no Redis
+  # password mismatch.
   jpa:
     show-sql: false
+    hibernate:
+      ddl-auto: validate
   flyway:
     clean-disabled: false
   security:
@@ -23,7 +14,7 @@ spring:
       resourceserver:
         jwt:
           # Placeholder JWKS URI — never contacted. Tests authenticate with
-          # spring-security-test (@WithMockUser / SecurityMockMvcRequestPostProcessors.jwt()),
+          # spring-security-test (SecurityMockMvcRequestPostProcessors.jwt()),
           # so the decoder is built lazily and no auth server is required.
           jwk-set-uri: http://localhost:9000/oauth2/jwks
 

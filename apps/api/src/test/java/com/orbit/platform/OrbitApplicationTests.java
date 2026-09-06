@@ -1,15 +1,13 @@
 package com.orbit.platform;
 
+import com.orbit.platform.support.AbstractApiIntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest
-@ActiveProfiles("test")
-class OrbitApplicationTests {
+class OrbitApplicationTests extends AbstractApiIntegrationTest {
 
     @Test
     void contextLoads() {
-        // Verifies that the Spring application context loads successfully
+        // Verifies the Spring context loads against a real (Testcontainers)
+        // PostgreSQL + Redis, with Flyway V1 + V2 applied.
     }
 }
