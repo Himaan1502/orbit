@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create your account · ORBIT</title>
+    <link rel="stylesheet" th:href="@{/css/auth.css}" href="/css/auth.css">
+</head>
+<body>
+<main class="auth-card">
+    <div class="brand" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="26" stroke="#4FD1E5" stroke-width="2"
+                    stroke-linecap="round" stroke-dasharray="130 33"></circle>
+            <circle cx="32" cy="32" r="4" fill="#4FD1E5"></circle>
+        </svg>
+    </div>
+    <h1>Create your ORBIT account</h1>
+
+    <form method="post" th:action="@{/register}" action="/register" th:object="${form}" novalidate>
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" th:field="*{email}"
+               autocomplete="email" inputmode="email" required autofocus>
+        <p class="field-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></p>
+
+        <label for="displayName">Display name <span class="opt">(optional)</span></label>
+        <input type="text" id="displayName" name="displayName" th:field="*{displayName}"
+               autocomplete="name" maxlength="100">
+        <p class="field-error" th:if="${#fields.hasErrors('displayName')}" th:errors="*{displayName}"></p>
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" th:field="*{password}"
+               autocomplete="new-password" required minlength="12" maxlength="128"
+               aria-describedby="pw-hint">
+        <p id="pw-hint" class="hint">At least 12 characters. Avoid anything predictable.</p>
+        <p class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}"></p>
+
+        <label for="confirmPassword">Confirm password</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" th:field="*{confirmPassword}"
+               autocomplete="new-password" required>
+        <p class="field-error" th:if="${#fields.hasErrors('confirmPassword')}" th:errors="*{confirmPassword}"></p>
+
+        <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}"
+               th:value="${_csrf.token}">
+
+        <button type="submit">Create account</button>
+    </form>
+
+    <p class="foot">
+        Already have an account? <a th:href="@{/login}" href="/login">Sign in</a>
+    </p>
+</main>
+</body>
+</html>

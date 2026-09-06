@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign in · ORBIT</title>
+    <link rel="stylesheet" th:href="@{/css/auth.css}" href="/css/auth.css">
+</head>
+<body>
+<main class="auth-card">
+    <div class="brand" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="26" stroke="#4FD1E5" stroke-width="2"
+                    stroke-linecap="round" stroke-dasharray="130 33"></circle>
+            <circle cx="32" cy="32" r="4" fill="#4FD1E5"></circle>
+        </svg>
+    </div>
+    <h1>Sign in to ORBIT</h1>
+
+    <div class="alert alert-error" th:if="${param.error != null and param.locked == null}" role="alert">
+        Incorrect email or password.
+    </div>
+    <div class="alert alert-error" th:if="${param.locked != null}" role="alert">
+        Too many failed attempts. Try again in a few minutes.
+    </div>
+    <div class="alert alert-ok" th:if="${param.registered != null}" role="status">
+        Account created. Sign in to continue.
+    </div>
+    <div class="alert alert-ok" th:if="${param.logout != null}" role="status">
+        You have been signed out.
+    </div>
+
+    <form method="post" th:action="@{/login}" action="/login" novalidate>
+        <label for="username">Email</label>
+        <input type="email" id="username" name="username" autocomplete="username"
+               required autofocus inputmode="email">
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+
+        <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}"
+               th:value="${_csrf.token}">
+
+        <button type="submit">Sign in</button>
+    </form>
+
+    <p class="foot">
+        No account? <a th:href="@{/signup}" href="/signup">Create one</a>
+    </p>
+</main>
+</body>
+</html>

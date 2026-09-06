@@ -1,0 +1,113 @@
+/* ORBIT auth pages — Deep Space palette, Orbital Instrument feel. Mirrors the
+   design-system tokens used by apps/web (docs/design/ORBIT-design-system.md). */
+
+:root {
+    --bg-base: #0b0c10;
+    --bg-surface: #14151b;
+    --border: #2a2c36;
+    --text-primary: #e9e9ee;
+    --text-secondary: #8b8d98;
+    --accent-cyan: #4fd1e5;
+    --danger: #f2545b;
+    --success: #3dd68c;
+}
+
+* { box-sizing: border-box; }
+
+html { color-scheme: dark; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 28px;
+}
+
+.brand { margin-bottom: 16px; }
+
+h1 {
+    margin: 0 0 20px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+label {
+    display: block;
+    margin: 14px 0 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+label .opt { color: var(--text-secondary); font-weight: 400; }
+
+input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+}
+
+input:focus-visible {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 2px rgba(79, 209, 229, 0.25);
+}
+
+button {
+    width: 100%;
+    margin-top: 22px;
+    padding: 11px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--bg-base);
+    background: var(--accent-cyan);
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+button:hover { filter: brightness(1.06); }
+
+.foot {
+    margin: 20px 0 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.foot a, a { color: var(--accent-cyan); text-decoration: none; }
+.foot a:hover, a:hover { text-decoration: underline; }
+
+.hint { margin: 6px 0 0; font-size: 12px; color: var(--text-secondary); }
+
+.field-error { margin: 6px 0 0; font-size: 12.5px; color: var(--danger); }
+
+.alert {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    font-size: 13px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.alert-error { color: var(--danger); border-color: rgba(242, 84, 91, 0.4); background: rgba(242, 84, 91, 0.08); }
+.alert-ok { color: var(--success); border-color: rgba(61, 214, 140, 0.4); background: rgba(61, 214, 140, 0.08); }

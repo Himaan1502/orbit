@@ -1,0 +1,33 @@
+spring:
+  # Datasource is supplied by Testcontainers (@ServiceConnection) in the test
+  # base class — see AbstractAuthIntegrationTest.
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  thymeleaf:
+    cache: false
+  flyway:
+    schemas: auth
+    default-schema: auth
+    create-schemas: true
+
+orbit:
+  auth:
+    issuer: http://localhost:9000
+    keystore-secret: test-only-keystore-secret-not-a-real-one
+    web-client:
+      client-id: orbit-web
+      client-secret: test-only-web-client-secret
+      redirect-uri: http://localhost:3000/auth/callback
+      post-logout-redirect-uri: http://localhost:3000
+    rate-limit:
+      login-per-minute: 1000
+      register-per-minute: 1000
+      max-login-failures: 5
+      lockout-minutes: 15
+
+logging:
+  level:
+    com.orbit.auth: INFO
+    org.springframework.security: WARN

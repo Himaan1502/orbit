@@ -5,51 +5,40 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.orbit.auth.signingkey.SigningKeyManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
-import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
-import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
-import java.time.Duration;
-import java.util.UUID;
-
 /**
- * OAuth2 / OIDC authorization-server configuration — see ADR-004.
+ * OAuth2 / OIDC authorization-server configuration — see ADR-004, ADR-011.
  *
- * <p>Milestone 0 scope: one public client ({@code orbit-web}, PKCE required),
- * an ephemeral RSA signing key generated at startup, and in-memory storage.
- * Milestone 1 replaces the client repository, key source, and authorization
- * store with persistent implementations.
+ * <p>Milestone 1: JDBC-backed client / authorization / consent stores and a
+ * persistent RSA signing key (survives restarts, so issued tokens stay valid).
+ * Token claims are shaped by {@link OrbitTokenCustomizer}; the {@code orbit-web}
+ * client is kept in sync by {@link RegisteredClientSeeder}.
  */
 @Configuration
 public class AuthorizationServerConfig {
-
-    private static final Logger log = LoggerFactory.getLogger(AuthorizationServerConfig.class);
 
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -68,46 +57,26 @@ public class AuthorizationServerConfig {
     }
 
     @Bean
-    public RegisteredClientRepository registeredClientRepository(
-            @Value("${orbit.auth.web-client.client-id:orbit-web}") String webClientId,
-            @Value("${orbit.auth.web-client.redirect-uri}") String redirectUri,
-            @Value("${orbit.auth.web-client.post-logout-redirect-uri}") String postLogoutRedirectUri) {
-
-        RegisteredClient webClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId(webClientId)
-                // Public client: no secret, PKCE is mandatory (see clientSettings).
-                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                .redirectUri(redirectUri)
-                .postLogoutRedirectUri(postLogoutRedirectUri)
-                .scope(OidcScopes.OPENID)
-                .scope(OidcScopes.PROFILE)
-                .scope("orbit.read")
-                .scope("orbit.write")
-                .clientSettings(ClientSettings.builder()
-                        .requireProofKey(true)
-                        .requireAuthorizationConsent(false)
-                        .build())
-                .tokenSettings(TokenSettings.builder()
-                        .accessTokenTimeToLive(Duration.ofMinutes(15))
-                        .refreshTokenTimeToLive(Duration.ofDays(7))
-                        .reuseRefreshTokens(false)
-                        .build())
-                .build();
-
-        return new InMemoryRegisteredClientRepository(webClient);
+    public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate) {
+        return new JdbcRegisteredClientRepository(jdbcTemplate);
     }
 
     @Bean
-    public JWKSource<SecurityContext> jwkSource() {
-        // MILESTONE 0: ephemeral key — tokens do not survive an auth-server
-        // restart. Milestone 1 loads a persistent, rotatable key from a mounted
-        // keystore / secrets manager.
-        RSAKey rsaKey = generateRsaKey();
-        JWKSet jwkSet = new JWKSet(rsaKey);
-        log.warn("Auth server using an EPHEMERAL RSA signing key (kid={}). "
-                + "Tokens are invalidated on restart. Not for production.", rsaKey.getKeyID());
+    public OAuth2AuthorizationService authorizationService(
+            JdbcTemplate jdbcTemplate, RegisteredClientRepository registeredClientRepository) {
+        return new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
+    }
+
+    @Bean
+    public OAuth2AuthorizationConsentService authorizationConsentService(
+            JdbcTemplate jdbcTemplate, RegisteredClientRepository registeredClientRepository) {
+        return new JdbcOAuth2AuthorizationConsentService(jdbcTemplate, registeredClientRepository);
+    }
+
+    @Bean
+    public JWKSource<SecurityContext> jwkSource(SigningKeyManager signingKeyManager) {
+        RSAKey activeKey = signingKeyManager.loadOrCreateActiveKey();
+        JWKSet jwkSet = new JWKSet(activeKey);
         return new ImmutableJWKSet<>(jwkSet);
     }
 
@@ -121,23 +90,6 @@ public class AuthorizationServerConfig {
             @Value("${orbit.auth.issuer}") String issuer) {
         return AuthorizationServerSettings.builder()
                 .issuer(issuer)
-                .build();
-    }
-
-    private static RSAKey generateRsaKey() {
-        KeyPair keyPair;
-        try {
-            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-            generator.initialize(2048);
-            keyPair = generator.generateKeyPair();
-        } catch (Exception ex) {
-            throw new IllegalStateException("Unable to generate RSA signing key", ex);
-        }
-        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
-        RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
-        return new RSAKey.Builder(publicKey)
-                .privateKey(privateKey)
-                .keyID(UUID.randomUUID().toString())
                 .build();
     }
 }
