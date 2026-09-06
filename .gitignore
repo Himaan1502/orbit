@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+/apps/web/.next/
+/apps/web/out/
+/apps/api/build/
+/apps/api/bin/
+*.jar
+*.war
+*.class
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test & Coverage
+coverage/
+*.lcov
+test-results/
+playwright-report/
+
+# Docker
+docker-compose.override.yml
+
+# Gradle
+.gradle/
+build/
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# Claude Code (keep shared settings.json; ignore local overrides)
+.claude/settings.local.json
+
+# Misc
+*.bak
+*.tmp
+.cache/

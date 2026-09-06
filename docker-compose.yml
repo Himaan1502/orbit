@@ -1,0 +1,91 @@
+
+services:
+  orbit-db:
+    image: postgres:16-alpine
+    container_name: orbit-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-orbit_db}
+      POSTGRES_USER: ${POSTGRES_USER:-orbit_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-orbit_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbit_user -d orbit_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orbit-network
+
+  orbit-redis:
+    image: redis:7-alpine
+    container_name: orbit-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_pass}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_pass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orbit-network
+
+  orbit-api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: orbit-api
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: orbit-db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-orbit_db}
+      DB_USERNAME: ${POSTGRES_USER:-orbit_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-orbit_pass}
+      REDIS_HOST: orbit-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-that-is-at-least-256-bits-long-for-hmac-sha256-algorithm}
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      orbit-db:
+        condition: service_healthy
+      orbit-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - orbit-network
+
+  orbit-web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: orbit-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      orbit-api:
+        condition: service_healthy
+    networks:
+      - orbit-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  orbit-network:
+    driver: bridge
