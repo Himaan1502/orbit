@@ -27,5 +27,29 @@ the specs win.
   decisions, but do flag anything that changes product scope.
 
 ## Current status
-Milestone 0 (Architecture & Repository Bootstrap) is in progress. See the
-status report below for what's actually been verified so far vs. what has not.
+
+Milestone 0 (Architecture & Repository Bootstrap) — verified 2026-09-06.
+
+Every row below was checked by running the command in a session and reading the
+output, not by inspecting files.
+
+| Checklist item | Status | Notes |
+|----------------|--------|-------|
+| Frontend builds | ✅ | `npm run build` in `apps/web` — 15/15 routes |
+| Backend builds | ✅ | `apps/api` `./gradlew build` — `BUILD SUCCESSFUL` |
+| Auth server builds | ✅ | `apps/auth` `./gradlew build` — `BUILD SUCCESSFUL` |
+| Tests execute | ✅ | api 2, auth 3, web (vitest) — 0 failures |
+| Linting passes | ✅ | web `npm run lint` clean; api/auth Checkstyle clean; SpotBugs 0 warnings (still `ignoreFailures=true`) |
+| Formatting passes | ✅ | `npm run format:check` exits 0 (`.prettierignore` added) |
+| Database starts | ✅ | `docker compose up -d orbit-db` → healthy; Flyway V1 applied |
+| Redis starts | ✅ | `docker compose up -d orbit-redis` → healthy |
+| Applications start | ✅ | `apps/api` + `apps/auth` `bootRun` verified; web build serves |
+| Health endpoints work | ✅ | api `/actuator/health` + `/api/v1/health` 200; auth `/actuator/health` 200 |
+| OIDC flow works | ✅ | full Auth Code + PKCE: token issued, accepted by api on a protected route |
+| Docker Compose works | 🟡 | db/redis verified healthy; `compose config` valid; `orbit-api` / `orbit-auth` / `orbit-web` image builds not run |
+| CI configuration is valid | 🟡 | `ci.yml` valid YAML, 3 jobs; workflow not executed (no remote yet) |
+
+Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
+[ADR-004](docs/adr/ADR-004-oidc-authentication.md).
+
+Known deferrals: [docs/engineering/deferred-items.md](docs/engineering/deferred-items.md).

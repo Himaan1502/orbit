@@ -7,6 +7,12 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # Empty default is correct for CI, where the `redis` service container runs
+      # with no password. For a local `./gradlew test` against docker-compose
+      # (Redis started with --requirepass), export REDIS_PASSWORD=redis_pass.
+      # No test connects to Redis today, so a mismatch is currently harmless.
+      # Making the suite hermetic (Testcontainers for Postgres + Redis) is a
+      # Milestone 1 item — see docs/engineering/deferred-items.md.
       password: ${REDIS_PASSWORD:}
   jpa:
     show-sql: false
