@@ -46,8 +46,9 @@ output, not by inspecting files.
 | Applications start | ✅ | `apps/api` + `apps/auth` `bootRun` verified; web build serves |
 | Health endpoints work | ✅ | api `/actuator/health` + `/api/v1/health` 200; auth `/actuator/health` 200 |
 | OIDC flow works | ✅ | full Auth Code + PKCE: token issued, accepted by api on a protected route |
-| Docker Compose works | 🟡 | db/redis verified healthy; `compose config` valid; `orbit-api` / `orbit-auth` / `orbit-web` image builds not run |
-| CI configuration is valid | 🟡 | `ci.yml` valid YAML, 3 jobs; workflow not executed (no remote yet) |
+| Docker Compose build | ✅ | 2026-09-06 — `docker compose build` for `orbit-auth`, `orbit-api`, `orbit-web` all succeeded with real output; `orbit-web` fixed (`.dockerignore`, `public/`, `HOSTNAME=0.0.0.0`) and builds 15/15 routes |
+| Docker Compose up | ✅ | 2026-09-06 — `docker compose up -d` → `docker compose ps` shows all 5 (`orbit-db`, `orbit-redis`, `orbit-auth`, `orbit-api`, `orbit-web`) `Up (healthy)`; web `/`, api + auth `/actuator/health` all 200 |
+| CI configuration is valid | ✅ | 2026-09-06 — GitHub Actions run [#34048695491](https://github.com/Himaan1502/orbit/actions/runs/34048695491) on `main`: Frontend, Backend, Auth Server jobs all green (cache-service warnings only, non-blocking) |
 
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md).

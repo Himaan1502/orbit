@@ -115,6 +115,14 @@ services:
     depends_on:
       orbit-api:
         condition: service_healthy
+    healthcheck:
+      # 127.0.0.1, not localhost: busybox wget resolves localhost to ::1 first
+      # and does not fall back to IPv4, while the server listens on 0.0.0.0 (v4).
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - orbit-network
 
