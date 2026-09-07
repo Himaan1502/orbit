@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ListTodo, Plus } from 'lucide-react';
+import { ArrowLeft, Briefcase, ListTodo, Plus } from 'lucide-react';
 import { useObjective, useMilestones } from '@/features/objectives/api';
+import { useCareerTargets } from '@/features/career/api';
 import { useTasks } from '@/features/execution/api';
 import { MilestoneSection } from '@/features/objectives/MilestoneSection';
 import { TaskForm } from '@/features/execution/TaskForm';
@@ -21,6 +22,7 @@ export default function ObjectiveDetailPage({ params }: { params: { id: string }
   const objective = useObjective(id);
   const milestones = useMilestones(id);
   const allTasks = useTasks();
+  const careerTargets = useCareerTargets();
   const [adding, setAdding] = useState(false);
 
   const tasks = useMemo(
@@ -33,6 +35,7 @@ export default function ObjectiveDetailPage({ params }: { params: { id: string }
     return <ErrorState message="This objective could not be found." />;
 
   const o = objective.data;
+  const linkedTarget = careerTargets.data?.find((t) => t.id === o.careerTargetId);
 
   return (
     <div className="animate-fade-in">
@@ -55,11 +58,22 @@ export default function ObjectiveDetailPage({ params }: { params: { id: string }
             {o.description && (
               <p className="mt-2 text-sm text-[var(--text-secondary)]">{o.description}</p>
             )}
-            {o.targetDate && (
-              <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)]">
-                Target · {formatDate(o.targetDate)}
-              </p>
-            )}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              {o.targetDate && (
+                <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)]">
+                  Target · {formatDate(o.targetDate)}
+                </p>
+              )}
+              {o.careerTargetId && (
+                <Link
+                  href="/career"
+                  className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--accent-cyan)] hover:underline"
+                >
+                  <Briefcase size={12} />
+                  {linkedTarget ? linkedTarget.name : 'Career target'}
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </Card>

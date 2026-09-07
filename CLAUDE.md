@@ -101,6 +101,34 @@ M2 ADRs: [ADR-014](docs/adr/ADR-014-priority-engine-v1.md) (priority weights —
 **needs sign-off**), [ADR-015](docs/adr/ADR-015-daily-plan-generation.md),
 [ADR-016](docs/adr/ADR-016-objective-status-and-progress.md).
 
+### Milestone 3 (Career & Skills) — verified 2026-09-07
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Skills domain (Blueprint §12, §20) | ✅ | V4 migration: `orbit.skills` (global catalog), `skill_dependencies` (DAG, `CHECK (prerequisite <> dependent)`), `skill_assessments` (append-only, 5 dims + overall). `GET /api/v1/skills`, `/skills/{id}`, `/skills/{id}/dependencies`, `POST /skills/{id}/assessments`. [ADR-019](docs/adr/ADR-019-skill-dependency-graph.md). |
+| Skill catalog seed | ✅ | V5 migration — 34 curated skills + 41 dependency edges, stable `uuid5` ids, `ON CONFLICT DO NOTHING`. Asserted acyclic by `SkillGraphValidatorTest`, a Python generator check, **and** a startup `ApplicationRunner` (`SkillsConfig`) that fails fast on a cycle. Live: log line `Skill dependency graph verified acyclic (41 edges).` [ADR-020](docs/adr/ADR-020-skill-catalog-seed.md). |
+| Skill Scoring v1 (Blueprint §23) | ✅ | Pure `SkillScoringEngine`: `overall = 0.20·knowledge + 0.25·practical + 0.20·evidence + 0.15·interview + 0.20·production`. Configurable (`orbit.skills.scoring.weights.*`), startup-validated to sum 1 (±0.001). Every score carries a weights `fingerprint` + `confidence: self-reported` (all M3 assessments are `self`). `SkillScoringEngineTest` (5), `SkillScoringWeightsTest` (3). [ADR-017](docs/adr/ADR-017-skill-scoring-v1.md) — **weight values flagged for sign-off**. |
+| Career targets (Blueprint §8) | ✅ | V4: `orbit.career_targets` + `career_target_skills` (importance / interview / production weights). `GET/POST /api/v1/career/targets`, `GET/PATCH/DELETE /targets/{id}`. Real `objectives.career_target_id` FK (`ON DELETE SET NULL`); linking an objective to a target the caller doesn't own → `404`. |
+| Career Readiness (Blueprint §24) | ✅ | Pure `CareerReadinessCalculator`: importance-weighted skill capability (0.70) blended with interview-weight-weighted interview readiness (0.30), renormalised. Evidence/project coverage rendered as explicit `null` + `not-tracked-until-…`, never silent zero. Critical gaps + high-leverage skills ranked. `GET /api/v1/career/readiness`, `/career/gaps`. Reproducible. `CareerReadinessCalculatorTest` (7). [ADR-018](docs/adr/ADR-018-career-readiness.md) — **blend weights flagged for sign-off**. |
+| Priority Engine factor swap (ADR-014) | ✅ | `careerRelevance`, `skillGap`, `dependencyImpact`, `interviewValue` now computed from real career/skill data when a task has a skill and/or its objective has a career target; otherwise the M2 neutral/proxy default is unchanged. Formula, weight set and `fingerprint` **byte-identical**. `projectImpact` stays neutral (no Projects domain). `PriorityEngineTest` (9), `PriorityFactorSwapIntegrationTest` (2). |
+| Web — Career + Skills | ✅ | Real `/career` (readiness radial, component breakdown, critical gaps, high-leverage skills, target list, create-from-template), `/skills` (catalog grouped by category, capability bars), `/skills/[id]` (assess dialog, prerequisites/dependents, dimension breakdown). Objective↔target link in `ObjectiveForm` + shown on the objective detail page. TanStack Query via the ADR-013 BFF proxy. `CapabilityBar.test.tsx` (3). |
+| Ownership enforcement (404) | ✅ | Extended to career targets and skill assessments. `CareerIntegrationTest` (7), `SkillsIntegrationTest` (4). Live E2E + tests: user B → 404 on user A's target; objective can only link a target the caller owns. |
+| Tests | ✅ | `apps/api` `./gradlew clean build` — `BUILD SUCCESSFUL`, **84 tests** (0 failures), Checkstyle 0, SpotBugs 0 (fixed one latent M2 dead-store while here). `apps/auth` `build` — `BUILD SUCCESSFUL`, 12 tests. `apps/web` `build` (18 routes) / `lint` / `format:check` / `tsc` clean, `vitest` 9/9. |
+| Full browser E2E | ✅ | Playwright vs compose: signup → browse catalog → self-assess Kubernetes → create a career target from the Platform Engineer template → readiness + gaps render (computed components + explicit not-tracked) → link an objective → the linked objective's task shows `careerRelevance` as **computed**, an unlinked objective's stays **proxy**. |
+| `docker compose` (all 5) | ✅ | 2026-09-07 — clean `down -v` → `build orbit-api orbit-web` → `up -d` → `docker compose ps` all 5 `Up (healthy)`; Flyway V1→V5 applied; acyclic-graph runner passed. Docker Desktop was **stable** for the entire M3 session (build + up + two full E2E runs). |
+
+Not in scope for M3 and still open: per-career-target skill scoring weight
+overrides, readiness trend/history, evidence & project coverage in readiness
+(need those engines), user-editable skill catalog, upgrading
+`confidence` past `self-reported`, `projectImpact` in the Priority Engine. See
+[deferred-items.md](docs/engineering/deferred-items.md).
+
+M3 ADRs: [ADR-017](docs/adr/ADR-017-skill-scoring-v1.md) (skill scoring weights —
+**needs sign-off**), [ADR-018](docs/adr/ADR-018-career-readiness.md) (readiness
+blend weights — **needs sign-off**),
+[ADR-019](docs/adr/ADR-019-skill-dependency-graph.md),
+[ADR-020](docs/adr/ADR-020-skill-catalog-seed.md).
+
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:
 [ADR-011](docs/adr/ADR-011-authorization-server-persistence.md),

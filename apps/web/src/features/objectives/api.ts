@@ -36,6 +36,7 @@ export interface CreateObjectiveInput {
   description?: string;
   priority?: number;
   targetDate?: string | null;
+  careerTargetId?: string | null;
 }
 
 export function useCreateObjective() {

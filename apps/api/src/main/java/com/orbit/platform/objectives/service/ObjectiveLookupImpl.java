@@ -25,7 +25,7 @@ class ObjectiveLookupImpl implements ObjectiveLookup {
     public Optional<Snapshot> findOwned(UUID objectiveId, UUID userId) {
         return objectives.findByIdAndUserIdAndDeletedAtIsNull(objectiveId, userId)
                 .map(o -> new Snapshot(o.getId(), o.getTitle(), o.getPriority(), o.getTargetDate(),
-                        o.getStatus() == ObjectiveStatus.ARCHIVED));
+                        o.getStatus() == ObjectiveStatus.ARCHIVED, o.getCareerTargetId()));
     }
 
     @Override

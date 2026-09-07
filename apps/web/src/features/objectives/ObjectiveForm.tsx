@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
 import { Input, Textarea } from '@/components/ui/Field';
+import { useCareerTargets } from '@/features/career/api';
 import { useCreateObjective } from './api';
 
 const schema = z.object({
@@ -12,12 +13,14 @@ const schema = z.object({
   description: z.string().trim().max(5000).optional(),
   priority: z.coerce.number().int().min(1).max(5),
   targetDate: z.string().optional(),
+  careerTargetId: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
 
 export function ObjectiveForm({ onDone }: { onDone: () => void }) {
   const create = useCreateObjective();
+  const careerTargets = useCareerTargets();
   const {
     register,
     handleSubmit,
@@ -33,6 +36,7 @@ export function ObjectiveForm({ onDone }: { onDone: () => void }) {
       description: values.description || undefined,
       priority: values.priority,
       targetDate: values.targetDate || null,
+      careerTargetId: values.careerTargetId || null,
     });
     onDone();
   });
@@ -64,6 +68,31 @@ export function ObjectiveForm({ onDone }: { onDone: () => void }) {
         />
         <Input label="Target date" type="date" {...register('targetDate')} />
       </div>
+      {(careerTargets.data?.length ?? 0) > 0 && (
+        <div>
+          <label
+            htmlFor="careerTargetId"
+            className="mb-1.5 block text-xs text-[var(--text-secondary)]"
+          >
+            Career target (optional)
+          </label>
+          <select
+            id="careerTargetId"
+            {...register('careerTargetId')}
+            className="w-full rounded-button border border-[var(--border)] bg-[var(--bg-base)] px-3 py-2 text-sm text-[var(--text-primary)] focus-visible:border-[var(--accent-cyan)] focus-visible:outline-none"
+          >
+            <option value="">— none —</option>
+            {careerTargets.data?.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">
+            Linking an objective feeds its tasks the career &amp; skill priority factors.
+          </p>
+        </div>
+      )}
       {create.isError && (
         <p className="text-xs text-[var(--color-danger)]">Could not create the objective.</p>
       )}

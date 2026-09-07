@@ -24,6 +24,9 @@ public final class TaskDtos {
 
             UUID milestoneId,
 
+            /** Optional link to a catalogue skill — drives the career/skill priority factors. */
+            UUID skillId,
+
             @NotBlank(message = "Title is required.")
             @Size(max = 200, message = "Title must be at most 200 characters.")
             String title,
@@ -51,6 +54,8 @@ public final class TaskDtos {
 
             UUID milestoneId,
 
+            UUID skillId,
+
             @Pattern(regexp = "todo|in_progress|blocked|skipped",
                     message = "Use POST /tasks/{id}/complete to complete a task.")
             String status) {
@@ -60,6 +65,7 @@ public final class TaskDtos {
             UUID id,
             UUID objectiveId,
             UUID milestoneId,
+            UUID skillId,
             String title,
             String description,
             Integer estimatedMinutes,
@@ -73,8 +79,8 @@ public final class TaskDtos {
 
         public static TaskResponse from(Task t) {
             return new TaskResponse(
-                    t.getId(), t.getObjectiveId(), t.getMilestoneId(), t.getTitle(), t.getDescription(),
-                    t.getEstimatedMinutes(), t.getStatus().value(), t.getPriorityScore(),
+                    t.getId(), t.getObjectiveId(), t.getMilestoneId(), t.getSkillId(), t.getTitle(),
+                    t.getDescription(), t.getEstimatedMinutes(), t.getStatus().value(), t.getPriorityScore(),
                     t.getPriorityReason(), t.getDueAt(), t.getCompletedAt(),
                     t.getCreatedAt(), t.getUpdatedAt());
         }

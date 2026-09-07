@@ -37,6 +37,10 @@ public class Task extends BaseEntity {
     @Column(name = "milestone_id")
     private UUID milestoneId;
 
+    /** Optional link to a catalogue skill (Blueprint §10). Drives the career/skill priority factors. */
+    @Column(name = "skill_id")
+    private UUID skillId;
+
     @Column(name = "title", nullable = false, length = 200)
     private String title;
 
@@ -63,12 +67,13 @@ public class Task extends BaseEntity {
     @Column(name = "completed_at")
     private Instant completedAt;
 
-    public static Task create(UUID userId, UUID objectiveId, UUID milestoneId, String title,
+    public static Task create(UUID userId, UUID objectiveId, UUID milestoneId, UUID skillId, String title,
                               String description, Integer estimatedMinutes, Instant dueAt) {
         Task t = new Task();
         t.userId = userId;
         t.objectiveId = objectiveId;
         t.milestoneId = milestoneId;
+        t.skillId = skillId;
         t.title = title;
         t.description = description;
         t.estimatedMinutes = estimatedMinutes;

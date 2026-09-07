@@ -20,7 +20,14 @@ class PriorityEngineTest {
     private final PriorityEngine engine = new PriorityEngine(new PriorityWeights());
 
     private PriorityInput input(Instant dueAt, int objectivePriority, Integer estimate) {
-        return new PriorityInput(dueAt, null, objectivePriority, estimate, 120, 0, 0, NOW);
+        return new PriorityInput(dueAt, null, objectivePriority, estimate, 120, 0, 0,
+                null, null, null, null, NOW);
+    }
+
+    private PriorityInput withSignals(Double careerRelevance, Double skillGap,
+                                      Double dependencyImpact, Double interviewValue) {
+        return new PriorityInput(NOW.plus(3, ChronoUnit.DAYS), null, 3, 30, 120, 0, 0,
+                careerRelevance, skillGap, dependencyImpact, interviewValue, NOW);
     }
 
     @Test
@@ -79,7 +86,7 @@ class PriorityEngineTest {
     }
 
     @Test
-    void unavailableFactorsAreNeutralAndLabelled() {
+    void withoutCareerSignalsFactorsFallBackToNeutralAndProxy() {
         PriorityReason r = engine.score(input(NOW.plus(3, ChronoUnit.DAYS), 3, 30));
         for (String name : new String[] {"skillGap", "dependencyImpact", "projectImpact", "interviewValue"}) {
             assertThat(r.factors().get(name).value()).isEqualTo(0.5);
@@ -92,10 +99,32 @@ class PriorityEngineTest {
     }
 
     @Test
+    void realCareerSignalsReplaceTheNeutralDefaultsWithoutChangingTheFormula() {
+        PriorityReason baseline = engine.score(withSignals(null, null, null, null));
+        PriorityReason withReal = engine.score(withSignals(0.9, 0.8, 0.7, 0.6));
+
+        // formula/weights unchanged — same factor set, same weights, same fingerprint
+        assertThat(withReal.factors().keySet()).isEqualTo(baseline.factors().keySet());
+        assertThat(withReal.weightsFingerprint()).isEqualTo(baseline.weightsFingerprint());
+
+        assertThat(withReal.factors().get("careerRelevance").value()).isEqualTo(0.9);
+        assertThat(withReal.factors().get("careerRelevance").source()).isEqualTo("computed");
+        assertThat(withReal.factors().get("skillGap").value()).isEqualTo(0.8);
+        assertThat(withReal.factors().get("dependencyImpact").value()).isEqualTo(0.7);
+        assertThat(withReal.factors().get("interviewValue").value()).isEqualTo(0.6);
+        assertThat(withReal.factors().get("skillGap").source()).isEqualTo("computed");
+        // projectImpact stays neutral (Projects domain is M5)
+        assertThat(withReal.factors().get("projectImpact").source()).isEqualTo("neutral-default");
+
+        // real signals above neutral -> a higher score
+        assertThat(withReal.score()).isGreaterThan(baseline.score());
+    }
+
+    @Test
     void historicalCompletionUsesTheUsersRateOnceThereIsEnoughHistory() {
-        PriorityInput noHistory = new PriorityInput(null, null, 3, 30, 120, 3, 3, NOW);
-        PriorityInput goodRecord = new PriorityInput(null, null, 3, 30, 120, 10, 9, NOW);
-        PriorityInput poorRecord = new PriorityInput(null, null, 3, 30, 120, 10, 2, NOW);
+        PriorityInput noHistory = signalless(3, 3);
+        PriorityInput goodRecord = signalless(10, 9);
+        PriorityInput poorRecord = signalless(10, 2);
 
         assertThat(factor(engine.score(noHistory), "historicalCompletionProbability")).isEqualTo(0.5);
         assertThat(factor(engine.score(goodRecord), "historicalCompletionProbability")).isEqualTo(0.9);
@@ -107,6 +136,11 @@ class PriorityEngineTest {
         double low = engine.score(input(NOW.plus(20, ChronoUnit.DAYS), 1, 200)).score();
         double high = engine.score(input(NOW.plus(1, ChronoUnit.DAYS), 5, 20)).score();
         assertThat(high).isGreaterThan(low);
+    }
+
+    private PriorityInput signalless(long resolved, long done) {
+        return new PriorityInput(null, null, 3, 30, 120, resolved, done,
+                null, null, null, null, NOW);
     }
 
     private static double factor(PriorityReason r, String name) {

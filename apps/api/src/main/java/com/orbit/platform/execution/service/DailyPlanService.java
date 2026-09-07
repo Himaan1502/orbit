@@ -159,7 +159,6 @@ public class DailyPlanService {
 
     private DailyPlanResponse toResponse(DailyPlan plan) {
         UUID userId = plan.getUserId();
-        Map<UUID, Boolean> archivedCache = new HashMap<>();
         List<PlanEntryResponse> entries = new ArrayList<>();
         for (DailyPlanTask e : plan.getEntries()) {
             Task t = tasks.findByIdAndUserIdAndDeletedAtIsNull(e.getTaskId(), userId).orElse(null);

@@ -1,5 +1,6 @@
 package com.orbit.platform.execution.service;
 
+import com.orbit.platform.career.service.TaskCareerSignals;
 import com.orbit.platform.execution.PlanningProperties;
 import com.orbit.platform.execution.model.Task;
 import com.orbit.platform.execution.model.TaskStatus;
@@ -19,9 +20,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Assembles a {@link PriorityInput} for a task from its objective, the user's
- * planning budget and completion history, then applies the
- * {@link PriorityEngine}'s deterministic score. The engine itself is pure; this
+ * Assembles a {@link PriorityInput} for a task from its objective, its skill,
+ * the user's career target, planning budget and completion history, then applies
+ * the {@link PriorityEngine}'s deterministic score. The engine is pure; this
  * service does the I/O.
  */
 @Service
@@ -29,15 +30,18 @@ public class TaskScoringService {
 
     private final PriorityEngine engine;
     private final ObjectiveLookup objectives;
+    private final TaskCareerSignals careerSignals;
     private final TaskRepository tasks;
     private final CurrentUserService currentUser;
     private final PlanningProperties planning;
     private final Clock clock;
 
-    public TaskScoringService(PriorityEngine engine, ObjectiveLookup objectives, TaskRepository tasks,
+    public TaskScoringService(PriorityEngine engine, ObjectiveLookup objectives,
+                              TaskCareerSignals careerSignals, TaskRepository tasks,
                               CurrentUserService currentUser, PlanningProperties planning, Clock clock) {
         this.engine = engine;
         this.objectives = objectives;
+        this.careerSignals = careerSignals;
         this.tasks = tasks;
         this.currentUser = currentUser;
         this.planning = planning;
@@ -54,13 +58,17 @@ public class TaskScoringService {
     public PriorityReason score(Task task, UUID userId, Instant now) {
         int objectivePriority = 3;
         LocalDate objectiveTargetDate = null;
+        UUID careerTargetId = null;
         if (task.getObjectiveId() != null) {
             var snapshot = objectives.findOwned(task.getObjectiveId(), userId).orElse(null);
             if (snapshot != null) {
                 objectivePriority = snapshot.priority();
                 objectiveTargetDate = snapshot.targetDate();
+                careerTargetId = snapshot.careerTargetId();
             }
         }
+
+        TaskCareerSignals.Signals signals = careerSignals.forTask(task.getSkillId(), careerTargetId, userId);
 
         long resolved = tasks.countByUserIdAndStatusInAndDeletedAtIsNull(
                 userId, List.of(TaskStatus.DONE, TaskStatus.SKIPPED));
@@ -74,6 +82,10 @@ public class TaskScoringService {
                 currentUser.availableDailyMinutes(planning.defaultAvailableMinutes()),
                 resolved,
                 done,
+                signals.careerRelevance(),
+                signals.skillGap(),
+                signals.dependencyImpact(),
+                signals.interviewValue(),
                 now);
         return engine.score(input);
     }

@@ -16,6 +16,7 @@ public interface ObjectiveLookup {
     /** True if the milestone exists, is not deleted, and belongs to that objective. */
     boolean milestoneBelongsTo(UUID milestoneId, UUID objectiveId);
 
-    record Snapshot(UUID id, String title, int priority, LocalDate targetDate, boolean archived) {
+    record Snapshot(UUID id, String title, int priority, LocalDate targetDate, boolean archived,
+                    UUID careerTargetId) {
     }
 }

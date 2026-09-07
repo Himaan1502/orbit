@@ -1,5 +1,6 @@
 package com.orbit.platform.objectives.service;
 
+import com.orbit.platform.career.service.CareerTargetLookup;
 import com.orbit.platform.common.exception.ApiException;
 import com.orbit.platform.identity.service.CurrentUserService;
 import com.orbit.platform.objectives.model.Objective;
@@ -29,10 +30,13 @@ public class ObjectiveService {
 
     private final ObjectiveRepository objectives;
     private final CurrentUserService currentUser;
+    private final CareerTargetLookup careerTargets;
 
-    public ObjectiveService(ObjectiveRepository objectives, CurrentUserService currentUser) {
+    public ObjectiveService(ObjectiveRepository objectives, CurrentUserService currentUser,
+                            CareerTargetLookup careerTargets) {
         this.objectives = objectives;
         this.currentUser = currentUser;
+        this.careerTargets = careerTargets;
     }
 
     @Transactional(readOnly = true)
@@ -58,6 +62,7 @@ public class ObjectiveService {
     @Transactional
     public Objective create(CreateObjectiveRequest req) {
         UUID userId = currentUser.getOrProvision().getId();
+        requireOwnedCareerTarget(req.careerTargetId(), userId);
         return objectives.save(Objective.create(
                 userId,
                 req.title().strip(),
@@ -83,6 +88,7 @@ public class ObjectiveService {
             o.setTargetDate(req.targetDate());
         }
         if (req.careerTargetId() != null) {
+            requireOwnedCareerTarget(req.careerTargetId(), o.getUserId());
             o.setCareerTargetId(req.careerTargetId());
         }
         if (req.status() != null && !req.status().isBlank()) {
@@ -103,6 +109,13 @@ public class ObjectiveService {
         Objective o = getMine(id);
         o.softDelete();
         objectives.save(o);
+    }
+
+    /** A linked career target must be one the caller owns, or the link is answered 404. */
+    private void requireOwnedCareerTarget(UUID careerTargetId, UUID userId) {
+        if (careerTargetId != null && !careerTargets.existsForUser(careerTargetId, userId)) {
+            throw ApiException.notFound("Career target not found.");
+        }
     }
 
     private static String strip(String s) {

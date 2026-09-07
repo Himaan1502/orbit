@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 const SOURCE_LABEL: Record<string, string> = {
   computed: 'computed',
-  proxy: 'proxy (M2)',
+  proxy: 'proxy',
   'neutral-default': 'not yet available',
 };
 

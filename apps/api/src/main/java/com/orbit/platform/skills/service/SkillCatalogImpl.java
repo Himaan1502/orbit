@@ -1,0 +1,23 @@
+package com.orbit.platform.skills.service;
+
+import com.orbit.platform.skills.repository.SkillRepository;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+@Component
+class SkillCatalogImpl implements SkillCatalog {
+
+    private final SkillRepository skills;
+
+    SkillCatalogImpl(SkillRepository skills) {
+        this.skills = skills;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean exists(UUID skillId) {
+        return skillId != null && skills.existsById(skillId);
+    }
+}

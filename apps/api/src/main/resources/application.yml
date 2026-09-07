@@ -78,3 +78,19 @@ orbit:
     default-available-minutes: 120
     # Effort assumed for a task with no estimate, when packing a plan (ADR-015 §2).
     default-task-minutes: 30
+  # Skill Scoring v1 (Blueprint §23, ADR-017). Weights must sum to 1.0 — the
+  # context refuses to start otherwise. Defaults are Blueprint §23's values.
+  skills:
+    scoring:
+      weights:
+        knowledge: 0.20
+        practical: 0.25
+        evidence: 0.20
+        interview: 0.15
+        production: 0.20
+  # Career readiness component blend (ADR-018 §1). Applies among the components
+  # that have data; renormalised as more components (evidence, projects) land.
+  career:
+    readiness:
+      skill-capability-weight: 0.70
+      interview-readiness-weight: 0.30

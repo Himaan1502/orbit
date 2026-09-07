@@ -33,20 +33,86 @@ this file from the relevant comment.
 
 ---
 
-## M3 — Priority Engine: real factor providers
+## ✅ Closed in Milestone 3 — Priority Engine: real factor providers (partial)
 
-**Context.** [ADR-014](../adr/ADR-014-priority-engine-v1.md) ships the full
-Blueprint §22 eight-factor formula, but in M2 four factors return a neutral
-`0.5` (`skillGap`, `dependencyImpact`, `projectImpact`, `interviewValue`) and
-`careerRelevance` is proxied by the objective's manual priority.
+Four of the five career/skill factors now compute from real data
+([ADR-014](../adr/ADR-014-priority-engine-v1.md), swap only — formula, weights
+and `fingerprint` unchanged):
 
-**Deferred decision.** As each domain lands — Career Engine (M3), Skills, the
-dependency graph, Projects — replace its neutral/proxy factor provider with a
-real computation. The formula, weights, `priority_reason` shape and API do not
-change; only the provider swaps.
+- `careerRelevance` — the task skill's importance for the objective's career
+  target; falls back to the target's mean skill importance when the task has no
+  skill, and to the M2 objective-priority proxy when there is no career target.
+- `skillGap` — `1 − latest overall` for the task's skill, or an assumed-gap
+  constant (`0.7`) when the skill is attached but never self-assessed.
+- `dependencyImpact` — fraction of the target's skills that the task's skill
+  unblocks in the dependency graph.
+- `interviewValue` — the task skill's `interview_weight` for the target.
 
-**Touch points.** `apps/api` `execution/priority/PriorityEngine.java`,
-`execution/service/TaskScoringService.java`.
+Still neutral: **`projectImpact`** — waits on the Projects domain. And
+`careerRelevance` / `skillGap` / `dependencyImpact` / `interviewValue` fall back
+to neutral/proxy exactly as in M2 for any task without the relevant signal.
+
+**Touch points if resumed.** `apps/api` `career/service/CareerTaskSignalsImpl.java`,
+`execution/service/TaskScoringService.java`, `execution/priority/PriorityEngine.java`.
+
+---
+
+## M4+ — Per-career-target skill scoring weight overrides
+
+**Context.** [ADR-017](../adr/ADR-017-skill-scoring-v1.md) §5 — the five Skill
+Scoring dimension weights are one global set
+(`orbit.skills.scoring.weights.*`). A career target already carries per-skill
+`importance` / `interview_weight` / `production_weight`, but those weight the
+skill within *readiness*, not the dimension blend within the *skill's own score*.
+
+**Deferred decision.** Allow a career target (or role family) to override the
+dimension weights — e.g. an SRE-leaning target weighting `production` higher —
+resolved at scoring time with the global set as the default.
+
+**Why not now.** No evidence yet that one global blend is wrong; adding a second
+resolution path before it is needed is premature.
+
+---
+
+## M4+ — Career readiness trend / history
+
+**Context.** [ADR-018](../adr/ADR-018-career-readiness.md) — `/career/readiness`
+returns a point-in-time number; the response carries `trend: null`.
+`skill_assessments` is append-only, so the history exists.
+
+**Deferred decision.** A `/career/readiness/history` endpoint (or a `trend`
+block) that recomputes readiness at past assessment timestamps, plus a sparkline
+on the Career page.
+
+**Why not now.** Needs more than a few days of real assessment data to be
+meaningful.
+
+---
+
+## M5+ — Evidence & project coverage in career readiness
+
+**Context.** [ADR-018](../adr/ADR-018-career-readiness.md) §3 — readiness blends
+only skill capability + interview readiness. Evidence coverage and project
+coverage render as `{value: null, weight: 0, status: "not-tracked-until-…"}`.
+
+**Deferred decision.** When the Evidence engine (M4) and Projects domain (M5)
+land, give each a real coverage signal and a non-zero weight; the blend already
+renormalises across whatever components are available.
+
+---
+
+## M4+ — User-editable skill catalog & assessment sources beyond `self`
+
+**Context.** [ADR-020](../adr/ADR-020-skill-catalog-seed.md) — the catalog is
+seeded and read-only to end users in M3; `skill_assessments.assessment_source`
+allows `self | evidence | interview | system` but M3 only ever writes `self`, so
+every score is `confidence: self-reported`.
+
+**Deferred decision.** (a) A curator/admin path to add or deprecate catalog
+skills and edit dependency edges (with the `SkillGraphValidator.wouldCreateCycle`
+guard already in place); (b) `evidence`- and `interview`-sourced assessments that
+raise `confidence` to `partially-verified` / `verified` as the Evidence and
+interview-prep engines land.
 
 ---
 

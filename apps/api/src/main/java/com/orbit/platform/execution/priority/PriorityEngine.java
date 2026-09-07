@@ -31,15 +31,24 @@ public class PriorityEngine {
     public PriorityReason score(PriorityInput in) {
         Map<String, PriorityReason.Factor> factors = new LinkedHashMap<>();
 
-        add(factors, "careerRelevance", careerRelevance(in.objectivePriority()), weights.getCareerRelevance(),
-                PROXY, "objective priority " + in.objectivePriority() + "/5 (Career Engine lands in M3)");
-        add(factors, "skillGap", 0.5, weights.getSkillGap(), NEUTRAL, "Skills domain not yet available");
-        add(factors, "dependencyImpact", 0.5, weights.getDependencyImpact(), NEUTRAL,
-                "dependency graph not yet available");
+        if (in.careerRelevanceSignal() != null) {
+            add(factors, "careerRelevance", in.careerRelevanceSignal(), weights.getCareerRelevance(),
+                    COMPUTED, "importance of this task's skill for your career target");
+        } else {
+            add(factors, "careerRelevance", careerRelevance(in.objectivePriority()),
+                    weights.getCareerRelevance(), PROXY,
+                    "objective priority " + in.objectivePriority() + "/5 (no career target on this task)");
+        }
+        signalOrNeutral(factors, "skillGap", in.skillGapSignal(), weights.getSkillGap(),
+                "your current gap on this task's skill", "no skill attached to this task");
+        signalOrNeutral(factors, "dependencyImpact", in.dependencyImpactSignal(),
+                weights.getDependencyImpact(),
+                "this skill is a prerequisite for other target skills",
+                "no skill attached, or skill not in the dependency graph");
         add(factors, "projectImpact", 0.5, weights.getProjectImpact(), NEUTRAL,
                 "Projects domain not yet available");
-        add(factors, "interviewValue", 0.5, weights.getInterviewValue(), NEUTRAL,
-                "career / interview data not yet available");
+        signalOrNeutral(factors, "interviewValue", in.interviewValueSignal(), weights.getInterviewValue(),
+                "interview weight of this skill for your target", "no skill / target on this task");
 
         Urgency u = urgency(in);
         add(factors, "urgency", u.value(), weights.getUrgency(), COMPUTED, u.detail());
@@ -54,6 +63,15 @@ public class PriorityEngine {
         double total = factors.values().stream().mapToDouble(PriorityReason.Factor::contribution).sum();
         return PriorityReason.of(clamp(total), VERSION, weights.fingerprint(),
                 in.referenceInstant(), factors);
+    }
+
+    private void signalOrNeutral(Map<String, PriorityReason.Factor> factors, String name,
+                                 Double signal, double weight, String computedDetail, String neutralDetail) {
+        if (signal != null) {
+            add(factors, name, signal, weight, COMPUTED, computedDetail);
+        } else {
+            add(factors, name, 0.5, weight, NEUTRAL, neutralDetail);
+        }
     }
 
     // --- factor providers -------------------------------------------------
