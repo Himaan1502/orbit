@@ -66,17 +66,19 @@ user; adding a runner before there is scheduled work to run is premature.
 
 ---
 
-## M3+ — Objective progress when milestones AND loose tasks coexist
+## ✅ Resolved (2026-09-07) — Objective progress when milestones AND loose tasks coexist
 
-**Context.** [ADR-016](../adr/ADR-016-objective-status-and-progress.md) §3: if an
-objective has milestones, progress = milestone completion; tasks not attached to
-any milestone do not move objective progress directly (they still move a
-milestone's progress when attached).
+An objective's loose tasks (objective set, milestone null) now count together as
+**one synthetic unit** of progress alongside its milestones
+([ADR-016](../adr/ADR-016-objective-status-and-progress.md) §3, amended).
+Milestone-only and task-only objectives are unchanged.
 
-**Deferred decision.** Decide whether a "loose" task (objective set, milestone
-null) on an objective that also has milestones should contribute to objective
-progress — e.g. treat loose tasks as a synthetic milestone, or blend the two.
-Left as the simple precedence rule for M2.
+---
+
+## ✅ Resolved (2026-09-07) — Priority Engine weight-sum validation test
+
+`PriorityWeightsTest` exercises the package-private `validate()` directly: the
+context refuses to start if the eight weights do not sum to 1 (±0.001).
 
 ---
 
