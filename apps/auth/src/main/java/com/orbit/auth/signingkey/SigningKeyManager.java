@@ -1,8 +1,11 @@
 package com.orbit.auth.signingkey;
 
+import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -14,14 +17,23 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
-import java.util.UUID;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Loads the persistent RSA signing key from {@code auth.signing_keys}, creating
- * one on first run. See ADR-011 §3. This replaces Milestone 0's ephemeral
- * {@code generateRsaKey()} — the key now survives restarts, so issued tokens
- * stay valid.
+ * Owns the persistent RSA signing keys in {@code auth.signing_keys} (ADR-011 §3).
+ *
+ * <p>Restarts never rotate the key — the active key is loaded from the database.
+ * Rotation is <em>overlapping</em>: a retired key's public half stays in the
+ * published JWKS until every token it could have signed has expired
+ * ({@code overlap} = the refresh-token TTL), so a rotation does not invalidate
+ * outstanding tokens. Rotation is operator-triggered
+ * ({@code AUTH_ROTATE_SIGNING_KEY=true} then restart) and also callable directly
+ * ({@link #rotate()}); the in-memory JWK set is refreshed live, no downtime.
  */
 @Component
 public class SigningKeyManager {
@@ -31,23 +43,84 @@ public class SigningKeyManager {
     private final SigningKeyRepository repository;
     private final KeySealer sealer;
     private final TransactionTemplate tx;
+    private final boolean rotateOnStartup;
+    private final Duration overlap;
 
-    public SigningKeyManager(SigningKeyRepository repository, KeySealer sealer, PlatformTransactionManager txManager) {
+    /** Current published set (active + still-valid retired keys), refreshed on rotate. */
+    private final AtomicReference<JWKSet> jwkSet = new AtomicReference<>(new JWKSet());
+    private volatile String activeKeyId;
+
+    public SigningKeyManager(
+            SigningKeyRepository repository,
+            KeySealer sealer,
+            PlatformTransactionManager txManager,
+            @Value("${orbit.auth.rotate-signing-key:false}") boolean rotateOnStartup,
+            @Value("${orbit.auth.signing-key-overlap:P7D}") Duration overlap) {
         this.repository = repository;
         this.sealer = sealer;
         this.tx = new TransactionTemplate(txManager);
+        this.rotateOnStartup = rotateOnStartup;
+        this.overlap = overlap;
     }
 
-    /** Returns the active signing key, generating and persisting one if none exists. */
-    public RSAKey loadOrCreateActiveKey() {
-        RSAKey key = tx.execute(status -> repository.findByActiveTrue()
-                .map(this::toRsaKey)
-                .orElseGet(this::generateAndStore));
-        log.info("Auth server signing key ready (kid={}, persistent)", key.getKeyID());
-        return key;
+    @PostConstruct
+    void init() {
+        reload();
+        if (rotateOnStartup) {
+            log.warn("AUTH_ROTATE_SIGNING_KEY is set — rotating the signing key now. "
+                    + "Unset it before the next restart to avoid rotating again.");
+            rotate();
+        }
     }
 
-    private RSAKey generateAndStore() {
+    /** The kid of the key that signs new tokens. */
+    public String activeKeyId() {
+        return activeKeyId;
+    }
+
+    /** The live JWK set — active key plus retired keys still within the overlap window. */
+    public JWKSet currentJwkSet() {
+        return jwkSet.get();
+    }
+
+    /** Retire the active key and promote a fresh one. Old tokens keep validating during the overlap. */
+    public void rotate() {
+        tx.executeWithoutResult(status -> {
+            // Flush the retire UPDATE before inserting the new active row — the
+            // `one active key` partial unique index is checked per statement.
+            repository.findByActiveTrue().ifPresent(current -> {
+                current.retire();
+                repository.saveAndFlush(current);
+            });
+            repository.save(newKey());
+        });
+        reload();
+        log.info("Signing key rotated. New active kid={}, {} key(s) published.",
+                activeKeyId, currentJwkSet().getKeys().size());
+    }
+
+    /** Rebuild the in-memory JWK set from the database; create the first key if the table is empty. */
+    public void reload() {
+        Instant cutoff = Instant.now().minus(overlap);
+        List<RSAKey> keys = tx.execute(status -> {
+            repository.findByActiveFalseAndRotatedAtBefore(cutoff).forEach(repository::delete);
+
+            List<SigningKey> stored =
+                    repository.findByActiveTrueOrRotatedAtAfterOrderByActiveDescCreatedAtDesc(cutoff);
+            if (stored.stream().noneMatch(SigningKey::isActive)) {
+                stored = new ArrayList<>(stored);
+                stored.add(0, repository.save(newKey()));
+            }
+            return stored.stream().map(this::toRsaKey).toList();
+        });
+
+        this.activeKeyId = repository.findByActiveTrue().map(SigningKey::getKeyId)
+                .orElse(keys.isEmpty() ? null : keys.get(0).getKeyID());
+        this.jwkSet.set(new JWKSet(new ArrayList<>(keys)));
+        log.info("Signing keys loaded: active kid={}, {} published", activeKeyId, keys.size());
+    }
+
+    private SigningKey newKey() {
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
             generator.initialize(2048);
@@ -55,16 +128,11 @@ public class SigningKeyManager {
             RSAPublicKey publicKey = (RSAPublicKey) pair.getPublic();
             RSAPrivateKey privateKey = (RSAPrivateKey) pair.getPrivate();
 
-            String kid = UUID.randomUUID().toString();
+            String kid = java.util.UUID.randomUUID().toString();
             String publicB64 = Base64.getEncoder()
                     .encodeToString(new X509EncodedKeySpec(publicKey.getEncoded()).getEncoded());
             String sealedPrivate = sealer.seal(new PKCS8EncodedKeySpec(privateKey.getEncoded()).getEncoded());
-
-            repository.save(new SigningKey(kid, publicB64, sealedPrivate));
-            log.warn("Generated a NEW persistent RSA signing key (kid={}). "
-                    + "Existing tokens (if any) are invalidated by this one-time event.", kid);
-
-            return new RSAKey.Builder(publicKey).privateKey(privateKey).keyID(kid).build();
+            return new SigningKey(kid, publicB64, sealedPrivate);
         } catch (RuntimeException ex) {
             throw ex;
         } catch (Exception ex) {

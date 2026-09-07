@@ -57,6 +57,8 @@ Every row checked by running the command / driving the flow in a session.
 | Item | Status | Notes |
 |------|--------|-------|
 | Persistent OIDC signing keys | ✅ | `auth.signing_keys` (RSA, private key AES-256-GCM sealed). `docker compose restart orbit-auth` → JWKS `kid` unchanged and a token issued **before** the restart still returns 200 from `apps/api`. [ADR-011](docs/adr/ADR-011-authorization-server-persistence.md) |
+| Signing-key rotation (M1 follow-up) | ✅ | Overlapping rotation: `AUTH_ROTATE_SIGNING_KEY=true` + restart → JWKS publishes new active **and** retired key; a token from before the rotation still returns 200 from `apps/api`; plain restart does not re-rotate. `SigningKeyRotationIntegrationTest`. |
+| `application-test.yml` relocated (M1 follow-up) | ✅ | Moved to `apps/api/src/test/resources/` — no longer in the production jar. `./gradlew test` still green. |
 | Persistent client / consent / authorization store | ✅ | `JdbcRegisteredClientRepository` + `JdbcOAuth2AuthorizationService` + `JdbcOAuth2AuthorizationConsentService`, `auth` schema, Flyway V1. Refresh tokens survive restart. |
 | Real registration / signup | ✅ | `auth.users` (BCrypt-12), server-rendered `/signup` + `POST /register`, email-uniqueness + validation, audit events (`auth.auth_events`), in-memory rate limit + lockout. [ADR-012](docs/adr/ADR-012-identity-and-registration-model.md) |
 | Frontend login + signup + logout wired | ✅ | Next.js BFF: `/login` `/signup` `/auth/callback` `/logout`, PKCE + confidential client, AES-256-GCM `HttpOnly` session cookie, transparent refresh in `/api/orbit/*` proxy. [ADR-013](docs/adr/ADR-013-frontend-session-and-bff.md) |
@@ -69,8 +71,8 @@ Every row checked by running the command / driving the flow in a session.
 | `apps/web` build / lint / format | ✅ | `npm run build` (22 routes), `lint` clean, `format:check` clean, `type-check` clean, `test` 3/3. |
 
 Not in scope for M1 and still open: email verification, password reset, MFA,
-signing-key rotation, Redis-backed distributed rate limiting, ADMIN role.
-See [deferred-items.md](docs/engineering/deferred-items.md).
+Redis-backed distributed rate limiting, ADMIN role, a zero-restart rotation
+trigger. See [deferred-items.md](docs/engineering/deferred-items.md).
 
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:

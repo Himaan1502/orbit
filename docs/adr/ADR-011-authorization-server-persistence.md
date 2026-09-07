@@ -91,18 +91,25 @@ auth.signing_keys
 - On startup the server loads the `active` row. If none exists, it generates a
   2048-bit RSA keypair, encrypts the PKCS#8 private key with **AES-256-GCM**
   using a key derived (PBKDF2WithHmacSHA256) from the `AUTH_KEYSTORE_SECRET`
-  environment variable, and inserts it as `active`.
-- **M1 scope:** the `JWKSource` publishes exactly the one active key, and signs
-  with it. This is what makes restarts non-destructive (the objective).
-- **Rotation is deferred** (see `deferred-items.md`): overlapping-key rotation —
-  insert a new `active` key, keep publishing the previous public key until every
-  token it signed has expired — needs a `JWKSource` that returns all valid
-  public keys for the JWKS endpoint but a single key for signing (Nimbus'
-  `NimbusJwtEncoder` rejects an ambiguous multi-key signing selection). The
-  `signing_keys` table already carries `active` / `rotated_at` so the history
-  model does not change when rotation lands. Until then, a key change is an
-  explicit operator action that invalidates outstanding tokens — acceptable,
-  unlike the M0 behaviour of doing that on every restart.
+  environment variable, and inserts it as `active`. A restart never rotates —
+  that is the objective.
+- **Overlapping rotation (implemented, M1 follow-up).** `SigningKeyManager` holds
+  the published JWK set in memory (`AtomicReference`) and refreshes it whenever a
+  rotation happens — no downtime. On `rotate()`: the current `active` row is
+  marked `active=false` + `rotated_at=now`, a fresh key is generated and becomes
+  `active`. The JWKS publishes **every** key whose `rotated_at` is newer than
+  `now − signing-key-overlap` (default `P7D`, ≥ the refresh-token TTL), so a
+  token signed just before a rotation still verifies until it would have expired
+  anyway. Retired keys past the overlap are deleted on the next `reload()`.
+- **Pinning the signer.** `NimbusJwtEncoder` refuses to sign when its key
+  selector matches more than one JWK. `OrbitTokenCustomizer` writes the active
+  `kid` into the JWS header, so the encoder always resolves to exactly one key
+  while the JWKS still lists all of them.
+- **Triggering a rotation.** Operator action: set `AUTH_ROTATE_SIGNING_KEY=true`,
+  restart the container (the manager rotates once during startup), then unset the
+  variable so the next restart does not rotate again. `SigningKeyManager.rotate()`
+  is also callable in-process (used by the integration test, and available to a
+  future localhost/admin HTTP trigger if zero-restart rotation is wanted).
 - `AUTH_KEYSTORE_SECRET` is the single piece of key material outside the
   database. It is not committed; `docker-compose.yml` supplies a documented
   local-only default via `.env`, exactly as the database password is handled.

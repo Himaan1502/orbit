@@ -64,6 +64,16 @@ public class SigningKey {
         this.createdAt = Instant.now();
     }
 
+    /** Retire this key: it stops signing but its public half is still published during the overlap. */
+    public void retire() {
+        this.active = false;
+        this.rotatedAt = Instant.now();
+    }
+
+    public Instant getRotatedAt() {
+        return rotatedAt;
+    }
+
     public UUID getId() {
         return id;
     }

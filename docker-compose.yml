@@ -65,6 +65,9 @@ services:
       # Seals signing-key private material at rest (ADR-011 §3). Local default;
       # a real secret in every other environment.
       AUTH_KEYSTORE_SECRET: ${AUTH_KEYSTORE_SECRET:-orbit-local-dev-keystore-secret-change-me}
+      # Set to true + restart to rotate the signing key (old key keeps validating
+      # tokens for AUTH_SIGNING_KEY_OVERLAP); unset afterwards. See ADR-011 §3.
+      AUTH_ROTATE_SIGNING_KEY: ${AUTH_ROTATE_SIGNING_KEY:-false}
       AUTH_DEV_USER: dev@orbit.local
       # AUTH_DEV_PASSWORD: set for a stable local login; unset skips the seed.
       AUTH_DEV_PASSWORD: ${AUTH_DEV_PASSWORD:-}

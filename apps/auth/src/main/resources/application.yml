@@ -63,6 +63,13 @@ orbit:
     # Secret used to derive the AES-256-GCM key that seals signing-key private
     # material at rest (ADR-011 §3). Not committed; supplied via .env for local.
     keystore-secret: ${AUTH_KEYSTORE_SECRET:orbit-local-dev-keystore-secret-change-me}
+    # Operator action: set true + restart to rotate the RSA signing key. The old
+    # key keeps validating tokens for `signing-key-overlap`. Unset afterwards so
+    # the next restart does not rotate again. See ADR-011 §3.
+    rotate-signing-key: ${AUTH_ROTATE_SIGNING_KEY:false}
+    # How long a retired signing key's public half stays in the JWKS — at least
+    # the refresh-token TTL, so no outstanding token is ever left unverifiable.
+    signing-key-overlap: ${AUTH_SIGNING_KEY_OVERLAP:P7D}
     dev-user:
       username: ${AUTH_DEV_USER:dev@orbit.local}
       # Leave blank to skip seeding. When set (dev profile only) an account with

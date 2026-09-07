@@ -6,33 +6,21 @@ this file from the relevant comment.
 
 ---
 
-## ✅ Closed in Milestone 1
+## ✅ Closed in Milestone 1 (incl. follow-ups)
 
 - **Hermetic test suite (Testcontainers).** `apps/api` and `apps/auth` now start
   PostgreSQL (and Redis, for the API) via Testcontainers using the
   singleton-container pattern. `application-test.yml` no longer assumes a local
   instance or a particular Redis password. CI service containers removed.
-
----
-
-## M2+ — Signing-key rotation
-
-**Context.** `apps/auth` persists one active RSA signing key
-([ADR-011](../adr/ADR-011-authorization-server-persistence.md) §3). Milestone 1
-publishes exactly that one key in the JWKS. The `auth.signing_keys` table already
-carries `active` / `rotated_at` for a rotation history.
-
-**Deferred decision.** Overlapping-key rotation: introduce a new active key while
-still publishing the previous public key until every token it signed has expired.
-Needs a `JWKSource` that returns *all* valid public keys for the `/oauth2/jwks`
-endpoint but a *single* key for signing (`NimbusJwtEncoder` rejects an ambiguous
-multi-key signing selection). Add an operator-triggered rotate action.
-
-**Why not now.** M1's objective was that a *restart* not invalidate tokens; that
-is met. A deliberate key change invalidating outstanding tokens is acceptable
-until rotation automation exists.
-
-**Touch points.** `apps/auth` `signingkey/` package, `AuthorizationServerConfig#jwkSource`.
+- **`apps/api/application-test.yml` relocated** from `src/main/resources/` to
+  `src/test/resources/` — it no longer ships in the production jar.
+- **Signing-key rotation.** Overlapping rotation implemented in `SigningKeyManager`
+  ([ADR-011](../adr/ADR-011-authorization-server-persistence.md) §3): the JWKS
+  publishes the active key plus retired keys still inside the overlap window
+  (`AUTH_SIGNING_KEY_OVERLAP`, default 7d); the signer is pinned to the active
+  `kid` via the JWS header. Operator-triggered by `AUTH_ROTATE_SIGNING_KEY=true`
+  + restart; the in-memory JWK set refreshes live. A zero-restart admin HTTP
+  trigger remains a possible future addition but is not needed.
 
 ---
 

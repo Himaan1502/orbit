@@ -2,6 +2,7 @@ package com.orbit.auth.config;
 
 import com.orbit.auth.identity.AuthUser;
 import com.orbit.auth.identity.AuthUserRepository;
+import com.orbit.auth.signingkey.SigningKeyManager;
 import org.springframework.security.oauth2.core.oidc.endpoint.OidcParameterNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
@@ -31,9 +32,11 @@ import java.util.Locale;
 public class OrbitTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingContext> {
 
     private final AuthUserRepository users;
+    private final SigningKeyManager signingKeys;
 
-    public OrbitTokenCustomizer(AuthUserRepository users) {
+    public OrbitTokenCustomizer(AuthUserRepository users, SigningKeyManager signingKeys) {
         this.users = users;
+        this.signingKeys = signingKeys;
     }
 
     @Override
@@ -43,6 +46,13 @@ public class OrbitTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCo
         boolean isIdToken = OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue());
         if (!isAccessToken && !isIdToken) {
             return;
+        }
+
+        // Pin the signature to the active key so NimbusJwtEncoder never has to
+        // choose between multiple published keys during overlapping rotation.
+        String activeKid = signingKeys.activeKeyId();
+        if (activeKid != null) {
+            context.getJwsHeader().keyId(activeKid);
         }
 
         String principalName = context.getPrincipal().getName();

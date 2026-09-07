@@ -1,8 +1,5 @@
 package com.orbit.auth.config;
 
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.orbit.auth.signingkey.SigningKeyManager;
@@ -75,9 +72,11 @@ public class AuthorizationServerConfig {
 
     @Bean
     public JWKSource<SecurityContext> jwkSource(SigningKeyManager signingKeyManager) {
-        RSAKey activeKey = signingKeyManager.loadOrCreateActiveKey();
-        JWKSet jwkSet = new JWKSet(activeKey);
-        return new ImmutableJWKSet<>(jwkSet);
+        // Backed by the manager's live set so key rotation takes effect without a
+        // restart. Publishes the active key plus retired keys still inside the
+        // overlap window; the encoder is pinned to the active key by the `kid`
+        // the token customiser writes into the JWS header. See ADR-011 §3.
+        return (jwkSelector, securityContext) -> jwkSelector.select(signingKeyManager.currentJwkSet());
     }
 
     @Bean
