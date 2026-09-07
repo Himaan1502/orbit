@@ -20,10 +20,11 @@ export interface NavItem {
   section: 'primary' | 'secondary' | 'bottom';
 }
 
-// Navigation structure per UX Spec (ADR-008)
+// Navigation structure per UX Spec §13 (ADR-008). Command Center is the primary
+// landing — it lives at "/" (M2; `/command-center` redirects there).
 export const navigationItems: NavItem[] = [
   // Primary section
-  { label: 'Command Center', href: '/command-center', icon: LayoutDashboard, section: 'primary' },
+  { label: 'Command Center', href: '/', icon: LayoutDashboard, section: 'primary' },
   { label: 'Objectives', href: '/objectives', icon: Target, section: 'primary' },
   { label: 'Career', href: '/career', icon: Briefcase, section: 'primary' },
   { label: 'Roadmaps', href: '/roadmaps', icon: Map, section: 'primary' },

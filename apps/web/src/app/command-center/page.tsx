@@ -1,6 +1,6 @@
-import { LayoutDashboard } from 'lucide-react';
-import { PlaceholderPage } from '@/components/ui/PlaceholderPage';
+import { redirect } from 'next/navigation';
 
-export default function CommandCenterPage() {
-  return <PlaceholderPage title="Command Center" icon={LayoutDashboard} milestone={3} />;
+/** Command Center is the primary landing at "/" (UX §13, ADR-008). */
+export default function CommandCenterRedirect() {
+  redirect('/');
 }
