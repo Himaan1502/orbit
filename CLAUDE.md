@@ -74,6 +74,32 @@ Not in scope for M1 and still open: email verification, password reset, MFA,
 Redis-backed distributed rate limiting, ADMIN role, a zero-restart rotation
 trigger. See [deferred-items.md](docs/engineering/deferred-items.md).
 
+### Milestone 2 (Objectives, Tasks & Daily Planning) — verified 2026-09-07
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Objectives fleshed out (Blueprint §9) | ✅ | V3 migration: `priority` (1–5), `progress` (derived 0–1), `career_target_id` (nullable). `GET/POST /api/v1/objectives`, `GET/PATCH/DELETE /objectives/{id}`. Status `active/completed/archived`; `completed` is derived, not settable. |
+| Milestones (Blueprint §9) | ✅ | `orbit.milestones`, `GET/POST /objectives/{id}/milestones` + `GET/PATCH/DELETE /objectives/{id}/milestones/{mid}`. Auto-status from child tasks. |
+| Progress rollup | ✅ | `ProgressCalculator` (pure, [ADR-016](docs/adr/ADR-016-objective-status-and-progress.md)) — milestone completion → objective progress; recomputed inline on task completion. `ProgressCalculatorTest` (8). Live: completing a milestone's task rolled its objective to 50%. |
+| Tasks (Blueprint §10) | ✅ | `orbit.tasks`, `GET/POST /api/v1/tasks`, `GET/PATCH /tasks/{id}`, `POST /tasks/{id}/complete`. Objective required, milestone optional; both ownership-checked (404). |
+| Priority Engine v1 (Blueprint §22) | ✅ | Weighted sum, Blueprint §22 weights, configurable (`orbit.priority.weights.*`, startup-validated to sum 1). Pure `PriorityEngine`; `priority_reason` JSONB carries every factor's value/weight/contribution/source. `PriorityEngineTest` (8, direct). [ADR-014](docs/adr/ADR-014-priority-engine-v1.md) — **weight values flagged for sign-off**. |
+| Daily planning (Blueprint §10, §20) | ✅ | `orbit.daily_plans` + `daily_plan_tasks`. Pure `DailyPlanGenerator` (greedy by priority within budget); `DailyPlanService` the inline caller ([ADR-015](docs/adr/ADR-015-daily-plan-generation.md)). `GET /daily-plans/{date}`, `POST /generate`, `POST /{id}/regenerate`. `DailyPlanGeneratorTest` (6, direct). |
+| Command Center aggregate | ✅ | `GET /api/v1/dashboard` — greeting, objective/execution health, next-best-action (with explanation), today block. `GET/PUT /api/v1/me/preferences` for the daily budget. |
+| Web — real pages | ✅ | Command Center at `/` (moved from `/command-center`, ADR-008); real `/objectives` (list + create), `/objectives/[id]` (milestones, tasks, progress ring, "Why this?" explainer), `/today` (generate + complete). TanStack Query via the ADR-013 BFF proxy — no direct API calls. |
+| Ownership enforcement (404) | ✅ | Extended to milestones, tasks, daily plans. `MilestoneIntegrationTest`, `ExecutionFlowIntegrationTest`, `DashboardIntegrationTest`. Live: user B → 404 on user A's objective/milestone/task. |
+| Tests | ✅ | api `./gradlew clean build` — `BUILD SUCCESSFUL`, **40 tests** (22 pure unit + 18 integration), Checkstyle 0, SpotBugs 0. web `build` (18 routes) / `lint` / `format:check` / `type-check` clean, `test` 6/6. |
+| Full browser E2E | ✅ | Playwright vs compose: signup → objective → 2 milestones → task under milestone → complete → objective 50% → generate daily plan → task shown in Today and Command Center. |
+| `docker compose build` + `up` (all 5) | ✅ | 2026-09-07 — clean `down -v` → `build` → `up -d` → all 5 `Up (healthy)`; V1→V2→V3 migrations applied. |
+
+Not in scope for M2 and still open: Career/Roadmaps/Skills/Projects/Evidence
+(and the 4 Priority Engine factors that depend on them), a durable/async job
+runner, real-time updates. See
+[deferred-items.md](docs/engineering/deferred-items.md).
+
+M2 ADRs: [ADR-014](docs/adr/ADR-014-priority-engine-v1.md) (priority weights —
+**needs sign-off**), [ADR-015](docs/adr/ADR-015-daily-plan-generation.md),
+[ADR-016](docs/adr/ADR-016-objective-status-and-progress.md).
+
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:
 [ADR-011](docs/adr/ADR-011-authorization-server-persistence.md),

@@ -281,21 +281,27 @@ See [Design System](docs/design/ORBIT_Design_System.md) and [ADR-007](docs/adr/A
 | [ADR-008](docs/adr/ADR-008-navigation-structure.md) | Navigation structure |
 | [ADR-009](docs/adr/ADR-009-flyway-database-migrations.md) | Flyway database migrations |
 | [ADR-010](docs/adr/ADR-010-observability-stack.md) | Observability stack |
+| [ADR-011](docs/adr/ADR-011-authorization-server-persistence.md) | Authorization server persistence |
+| [ADR-012](docs/adr/ADR-012-identity-and-registration-model.md) | Identity & registration model |
+| [ADR-013](docs/adr/ADR-013-frontend-session-and-bff.md) | Frontend session & BFF |
+| [ADR-014](docs/adr/ADR-014-priority-engine-v1.md) | Priority Engine v1 (weights) |
+| [ADR-015](docs/adr/ADR-015-daily-plan-generation.md) | Daily plan generation |
+| [ADR-016](docs/adr/ADR-016-objective-status-and-progress.md) | Objective status & progress rollup |
 
 ---
 
 ## Milestone Roadmap
 
-- **M0** — Architecture & Repository Bootstrap ← *you are here*
-- **M1** — User Identity & Authentication
-- **M2** — Objectives Module
-- **M3** — Command Center
-- **M4** — Career & Skills
-- **M5** — Roadmaps
-- **M6** — Projects & Evidence
-- **M7** — Today / Execution
-- **M8** — Analytics
-- **M9** — OSCAR AI
+- **M0** — Architecture & Repository Bootstrap ✅
+- **M1** — User Identity & Authentication ✅
+- **M2** — Objectives, Tasks, Daily Planning & Command Center ✅ ← *you are here*
+- **M3** — Career & Skills
+- **M4** — Roadmaps
+- **M5** — Projects & Evidence
+- **M6** — Analytics & Weekly Review
+- **M7** — OSCAR AI
+- **M8** — Integrations (GitHub / AI providers)
+- **M9** — SRE personal layer & Balance
 - **M10** — Production Hardening
 
 ---

@@ -24,6 +24,73 @@ this file from the relevant comment.
 
 ---
 
+## ✅ Closed in Milestone 2
+
+- **Objectives / Milestones / Tasks / Daily Planning** — Blueprint §9, §10, §20.
+  See CLAUDE.md's M2 status table and ADR-014/015/016.
+- **Priority Engine v1** — Blueprint §22, configurable weights
+  ([ADR-014](../adr/ADR-014-priority-engine-v1.md)).
+
+---
+
+## M3 — Priority Engine: real factor providers
+
+**Context.** [ADR-014](../adr/ADR-014-priority-engine-v1.md) ships the full
+Blueprint §22 eight-factor formula, but in M2 four factors return a neutral
+`0.5` (`skillGap`, `dependencyImpact`, `projectImpact`, `interviewValue`) and
+`careerRelevance` is proxied by the objective's manual priority.
+
+**Deferred decision.** As each domain lands — Career Engine (M3), Skills, the
+dependency graph, Projects — replace its neutral/proxy factor provider with a
+real computation. The formula, weights, `priority_reason` shape and API do not
+change; only the provider swaps.
+
+**Touch points.** `apps/api` `execution/priority/PriorityEngine.java`,
+`execution/service/TaskScoringService.java`.
+
+---
+
+## M4+ — Durable / async job runner
+
+**Context.** Daily-plan generation runs **inline** in the request
+([ADR-015](../adr/ADR-015-daily-plan-generation.md) §5). Blueprint §33 / Tech
+Arch §11 call for "a durable job mechanism appropriate to the Spring ecosystem".
+
+**Deferred decision.** Introduce the runner (Quartz, Spring Batch, or a
+DB-polling worker — its own ADR) when analytics aggregation (Blueprint §15) or
+scheduled plan refresh needs background work. `DailyPlanGenerator.generate(...)`
+is already a pure function such a runner can call directly.
+
+**Why not now.** Inline generation completes within the request for a single
+user; adding a runner before there is scheduled work to run is premature.
+
+---
+
+## M3+ — Objective progress when milestones AND loose tasks coexist
+
+**Context.** [ADR-016](../adr/ADR-016-objective-status-and-progress.md) §3: if an
+objective has milestones, progress = milestone completion; tasks not attached to
+any milestone do not move objective progress directly (they still move a
+milestone's progress when attached).
+
+**Deferred decision.** Decide whether a "loose" task (objective set, milestone
+null) on an objective that also has milestones should contribute to objective
+progress — e.g. treat loose tasks as a synthetic milestone, or blend the two.
+Left as the simple precedence rule for M2.
+
+---
+
+## M2+ — Daily-plan packing quality
+
+**Context.** `DailyPlanGenerator` uses greedy selection by priority within the
+minute budget ([ADR-015](../adr/ADR-015-daily-plan-generation.md), alternative 2).
+
+**Deferred decision.** If users find the plan wastes time at the end of the
+budget, replace greedy with a bounded knapsack / best-fit packing. Greedy is
+kept for v1 because it is explainable and O(n log n).
+
+---
+
 ## M2+ — Redis-backed rate limiting and durable lockout
 
 **Context.** Login / registration rate limiting and failed-login lockout in
