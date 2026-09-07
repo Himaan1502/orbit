@@ -5,6 +5,7 @@ import com.orbit.platform.objectives.model.MilestoneStatus;
 import com.orbit.platform.objectives.model.Objective;
 import com.orbit.platform.objectives.repository.MilestoneRepository;
 import com.orbit.platform.objectives.repository.ObjectiveRepository;
+import com.orbit.platform.objectives.service.ObjectiveTaskStats.Tally;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,17 +47,17 @@ public class ObjectiveProgressService {
         ObjectiveTaskStats.Counts counts = taskStats.countsForObjective(objectiveId);
 
         for (Milestone m : ms) {
-            ObjectiveTaskStats.Counts mc = counts.byMilestone().get(m.getId());
-            MilestoneStatus derived = deriveMilestoneStatus(m.getStatus(), mc);
+            MilestoneStatus derived = deriveMilestoneStatus(m.getStatus(), counts.byMilestone().get(m.getId()));
             if (derived != m.getStatus()) {
                 m.setStatus(derived);
                 milestones.save(m);
             }
         }
 
+        Tally loose = counts.loose();
         var rollup = ProgressCalculator.forObjective(
                 ms.stream().map(Milestone::getStatus).toList(),
-                counts.total(), counts.done(), counts.terminal(),
+                new ProgressCalculator.TaskCounts(loose.total(), loose.done(), loose.terminal()),
                 objective.getStatus());
 
         objective.setProgress(rollup.progress());
@@ -68,7 +69,7 @@ public class ObjectiveProgressService {
      * A milestone with tasks auto-follows them; a milestone with no tasks keeps
      * whatever the user set (manual control).
      */
-    private static MilestoneStatus deriveMilestoneStatus(MilestoneStatus current, ObjectiveTaskStats.Counts mc) {
+    private static MilestoneStatus deriveMilestoneStatus(MilestoneStatus current, Tally mc) {
         if (mc == null || mc.total() == 0) {
             return current;
         }

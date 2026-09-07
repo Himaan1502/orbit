@@ -13,10 +13,21 @@ public interface ObjectiveTaskStats {
 
     Counts countsForObjective(UUID objectiveId);
 
-    /** {@code total} / {@code done} / {@code terminal} (done or skipped) over non-deleted tasks. */
-    record Counts(int total, long done, long terminal, Map<UUID, Counts> byMilestone) {
+    /** A {@code total} / {@code done} / {@code terminal} (done or skipped) tally over non-deleted tasks. */
+    record Tally(int total, long done, long terminal) {
+        public static Tally empty() {
+            return new Tally(0, 0, 0);
+        }
+    }
+
+    /**
+     * @param all         every non-deleted task of the objective
+     * @param loose       tasks with no milestone (contribute as one synthetic unit — ADR-016 §3)
+     * @param byMilestone per-milestone tallies, keyed by {@code milestone_id}
+     */
+    record Counts(Tally all, Tally loose, Map<UUID, Tally> byMilestone) {
         public static Counts empty() {
-            return new Counts(0, 0, 0, Map.of());
+            return new Counts(Tally.empty(), Tally.empty(), Map.of());
         }
     }
 }

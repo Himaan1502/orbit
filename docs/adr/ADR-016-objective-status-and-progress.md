@@ -41,15 +41,21 @@ Priority Engine's proxy maps `1→0.2 … 5→1.0` linearly
 
 ### 3. Progress rollup — `ProgressCalculator` (pure)
 `objective.progress ∈ [0, 1]`, `NUMERIC(4,3)`, **derived, never set directly via
-the API**:
+the API**. Each milestone is one unit of progress; all of an objective's
+**loose** tasks (a task with `objective_id` set but `milestone_id` null) count
+together as **one additional synthetic unit** (amended 2026-09-07 — see History):
 
-- If the objective has **≥ 1 non-deleted milestone**:
-  `progress = completedMilestones / totalNonDeletedMilestones`.
-- Else if it has **≥ 1 non-deleted task**:
-  `progress = (done + skipped) tasks / totalNonDeletedTasks` — but `skipped`
-  contributes only if at least one task is `done` (an all-skipped objective is
-  not "progressing").
-- Else `progress = 0`.
+- Let `M` = number of non-deleted milestones, `Mc` = completed milestones.
+- Let `L` = number of non-deleted loose tasks, `Ld`/`Lt` = of those, `done` /
+  `terminal` (`done` or `skipped`).
+- `looseUnit` (only when `L > 0`) = `0` if `Ld == 0` (an all-skipped set is not
+  "progressing"), else `Lt / L`.
+- `units = M + (L > 0 ? 1 : 0)`.
+- `progress = units == 0 ? 0 : (Mc + looseUnit) / units`.
+
+So an objective with only milestones rolls up from milestones; one with only
+tasks rolls up from tasks; one with both gives the loose work the weight of a
+single milestone.
 
 Recomputed inline (in the same transaction) whenever a milestone's status
 changes, a task is completed/skipped/reopened, or a milestone/task is
@@ -57,9 +63,8 @@ created/deleted. When `progress` reaches `1.0` and the objective is `active`, it
 auto-transitions to `completed`; if it later drops below `1.0` (a task
 reopened), it returns to `active`.
 
-`ProgressCalculator.forObjective(List<Milestone>, List<Task>)` takes the loaded
-collections and returns `{ progress, derivedObjectiveStatus }` — no I/O, unit
-tested directly.
+`ProgressCalculator.forObjective(...)` takes only status counts (no entities, no
+I/O) and returns `{ progress, derivedObjectiveStatus }` — unit tested directly.
 
 ### 4. Milestone progress
 Milestones expose a computed `progress` in their API response
@@ -76,7 +81,16 @@ hardening, Tech Arch §9), consistently for objectives, milestones, tasks and
 daily plans.
 
 ## Alternatives Considered
-1. **Persist milestone progress** — rejected; recompute is trivial and one less
+1. **Loose tasks each count as a unit alongside milestones**
+   (`(Mc + Ld) / (M + L)`) — rejected; a small standalone task would then weigh
+   the same as an entire milestone, distorting progress on objectives with many
+   loose tasks.
+2. **Ignore loose tasks entirely when milestones exist** (the original M2 rule)
+   — rejected on review; completing real work left objective progress
+   unmoved, which is confusing (surfaced while authoring the M2 E2E).
+3. **A configurable milestone-vs-task weight blend** — rejected as premature
+   tuning; the synthetic-unit rule needs no parameter.
+4. **Persist milestone progress** — rejected; recompute is trivial and one less
    field to keep consistent.
 2. **Store `objective.progress` as 0–100** — rejected; `NUMERIC` 0–1 matches
    Blueprint §9's `progress NUMERIC` idiom and the Priority Engine's 0–1 factors.
@@ -95,3 +109,10 @@ daily plans.
   user who manually set `completed`. Mitigated: a manual `archived` is never
   auto-changed, and re-opening a task on a `completed` objective is a deliberate
   act.
+
+## History
+- **2026-09-07** — Accepted with Milestone 2.
+- **2026-09-07** — §3 amended: loose tasks (objective set, no milestone) on an
+  objective that also has milestones now contribute as one synthetic unit,
+  instead of being ignored. Milestone-only and task-only objectives are
+  unchanged.

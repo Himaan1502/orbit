@@ -98,7 +98,7 @@ public class MilestoneService {
     }
 
     private static MilestoneView view(Milestone m, ObjectiveTaskStats.Counts counts) {
-        ObjectiveTaskStats.Counts mc = counts.byMilestone().get(m.getId());
+        ObjectiveTaskStats.Tally mc = counts.byMilestone().get(m.getId());
         BigDecimal p = mc == null
                 ? BigDecimal.ZERO
                 : ProgressCalculator.milestoneProgress(mc.total(), mc.done());

@@ -8,12 +8,11 @@ import java.math.RoundingMode;
 import java.util.List;
 
 /**
- * Pure progress rollup (ADR-016 §3). Takes only status tokens — no entities, no
- * I/O, no cross-domain coupling — so it is trivially unit-tested. Callers pass
- * the statuses of the objective's non-deleted milestones and tasks.
+ * Pure progress rollup (ADR-016 §3). Takes only status counts — no entities, no
+ * I/O, no cross-domain coupling — so it is trivially unit-tested.
  *
- * <p>{@code taskDone} / {@code taskTerminal} are counts rather than a list of a
- * foreign domain's enum, keeping this class free of an {@code execution} import.
+ * <p>Each milestone is one unit of progress; all of an objective's <em>loose</em>
+ * tasks (no milestone) count together as one additional synthetic unit.
  */
 public final class ProgressCalculator {
 
@@ -23,17 +22,22 @@ public final class ProgressCalculator {
     public record ObjectiveRollup(BigDecimal progress, ObjectiveStatus derivedStatus) {
     }
 
+    /** A tally over a set of non-deleted tasks. */
+    public record TaskCounts(int total, long done, long terminal) {
+        public static TaskCounts none() {
+            return new TaskCounts(0, 0, 0);
+        }
+    }
+
     /**
      * @param milestoneStatuses statuses of the objective's non-deleted milestones
-     * @param taskCount          number of the objective's non-deleted tasks
-     * @param taskDone           of those, how many are {@code done}
-     * @param taskTerminal       of those, how many are {@code done} or {@code skipped}
+     * @param looseTasks         tally over tasks with no milestone
      * @param currentStatus      the objective's current status (drives auto active/completed)
      */
     public static ObjectiveRollup forObjective(List<MilestoneStatus> milestoneStatuses,
-                                               int taskCount, long taskDone, long taskTerminal,
+                                               TaskCounts looseTasks,
                                                ObjectiveStatus currentStatus) {
-        BigDecimal progress = fractionOf(milestoneStatuses, taskCount, taskDone, taskTerminal);
+        BigDecimal progress = fraction(milestoneStatuses, looseTasks);
 
         ObjectiveStatus derived = currentStatus;
         if (currentStatus == ObjectiveStatus.ACTIVE && progress.compareTo(BigDecimal.ONE) >= 0) {
@@ -44,28 +48,30 @@ public final class ProgressCalculator {
         return new ObjectiveRollup(progress, derived);
     }
 
-    private static BigDecimal fractionOf(List<MilestoneStatus> milestoneStatuses,
-                                         int taskCount, long taskDone, long taskTerminal) {
-        if (!milestoneStatuses.isEmpty()) {
-            long completed = milestoneStatuses.stream().filter(s -> s == MilestoneStatus.COMPLETED).count();
-            return fraction(completed, milestoneStatuses.size());
+    private static BigDecimal fraction(List<MilestoneStatus> milestoneStatuses, TaskCounts loose) {
+        long completedMilestones =
+                milestoneStatuses.stream().filter(s -> s == MilestoneStatus.COMPLETED).count();
+        int units = milestoneStatuses.size();
+
+        double looseUnit = 0;
+        if (loose.total() > 0) {
+            units += 1;
+            // An all-skipped set is not "progressing"; needs at least one `done`.
+            looseUnit = loose.done() == 0 ? 0.0 : (double) loose.terminal() / loose.total();
         }
-        if (taskCount > 0) {
-            if (taskDone == 0) {
-                return BigDecimal.ZERO;                  // an all-skipped objective is not "progressing"
-            }
-            return fraction(taskTerminal, taskCount);
+
+        if (units == 0) {
+            return BigDecimal.ZERO;
         }
-        return BigDecimal.ZERO;
+        return BigDecimal.valueOf((completedMilestones + looseUnit) / units)
+                .setScale(3, RoundingMode.HALF_UP);
     }
 
     /** Milestone progress for the API response (not persisted): done / total. */
     public static BigDecimal milestoneProgress(int taskCount, long taskDone) {
-        return taskCount == 0 ? BigDecimal.ZERO : fraction(taskDone, taskCount);
-    }
-
-    private static BigDecimal fraction(long numerator, long denominator) {
-        return BigDecimal.valueOf(numerator)
-                .divide(BigDecimal.valueOf(denominator), 3, RoundingMode.HALF_UP);
+        return taskCount == 0
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(taskDone)
+                        .divide(BigDecimal.valueOf(taskCount), 3, RoundingMode.HALF_UP);
     }
 }

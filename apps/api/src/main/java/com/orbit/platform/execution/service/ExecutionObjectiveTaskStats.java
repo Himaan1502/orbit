@@ -15,7 +15,7 @@ import java.util.UUID;
 /**
  * {@code execution}-side implementation of the {@link ObjectiveTaskStats} port
  * (Blueprint §5). Read-only aggregation over an objective's non-deleted tasks,
- * bucketed by milestone.
+ * split into per-milestone tallies and a "loose" (no milestone) tally.
  */
 @Component
 public class ExecutionObjectiveTaskStats implements ObjectiveTaskStats {
@@ -34,34 +34,37 @@ public class ExecutionObjectiveTaskStats implements ObjectiveTaskStats {
             return Counts.empty();
         }
 
-        Map<UUID, int[]> perMilestone = new HashMap<>();  // [total, done, terminal]
-        int total = 0;
-        long done = 0;
-        long terminal = 0;
+        int[] total = new int[3];                        // [total, done, terminal] — all
+        int[] loose = new int[3];                        // [total, done, terminal] — no milestone
+        Map<UUID, int[]> perMilestone = new HashMap<>();
+
         for (Task t : all) {
-            total++;
             boolean isDone = t.getStatus() == TaskStatus.DONE;
             boolean isTerminal = t.getStatus().isTerminal();
-            if (isDone) {
-                done++;
-            }
-            if (isTerminal) {
-                terminal++;
-            }
-            if (t.getMilestoneId() != null) {
-                int[] c = perMilestone.computeIfAbsent(t.getMilestoneId(), k -> new int[3]);
-                c[0]++;
-                if (isDone) {
-                    c[1]++;
-                }
-                if (isTerminal) {
-                    c[2]++;
-                }
+            bump(total, isDone, isTerminal);
+            if (t.getMilestoneId() == null) {
+                bump(loose, isDone, isTerminal);
+            } else {
+                bump(perMilestone.computeIfAbsent(t.getMilestoneId(), k -> new int[3]), isDone, isTerminal);
             }
         }
 
-        Map<UUID, Counts> byMilestone = new HashMap<>();
-        perMilestone.forEach((mid, c) -> byMilestone.put(mid, new Counts(c[0], c[1], c[2], Map.of())));
-        return new Counts(total, done, terminal, byMilestone);
+        Map<UUID, Tally> byMilestone = new HashMap<>();
+        perMilestone.forEach((mid, c) -> byMilestone.put(mid, tally(c)));
+        return new Counts(tally(total), tally(loose), byMilestone);
+    }
+
+    private static void bump(int[] c, boolean done, boolean terminal) {
+        c[0]++;
+        if (done) {
+            c[1]++;
+        }
+        if (terminal) {
+            c[2]++;
+        }
+    }
+
+    private static Tally tally(int[] c) {
+        return new Tally(c[0], c[1], c[2]);
     }
 }
