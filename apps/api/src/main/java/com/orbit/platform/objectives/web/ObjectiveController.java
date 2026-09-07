@@ -1,6 +1,8 @@
 package com.orbit.platform.objectives.web;
 
 import com.orbit.platform.common.dto.ApiResponse;
+import com.orbit.platform.common.exception.ApiException;
+import com.orbit.platform.objectives.model.ObjectiveStatus;
 import com.orbit.platform.objectives.service.ObjectiveService;
 import com.orbit.platform.objectives.web.dto.ObjectiveDtos.CreateObjectiveRequest;
 import com.orbit.platform.objectives.web.dto.ObjectiveDtos.ObjectiveResponse;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,8 +38,10 @@ public class ObjectiveController {
     }
 
     @GetMapping
-    public ApiResponse<List<ObjectiveResponse>> list() {
-        List<ObjectiveResponse> body = objectives.listMine().stream()
+    public ApiResponse<List<ObjectiveResponse>> list(
+            @RequestParam(name = "status", required = false) String status) {
+        ObjectiveStatus filter = parseStatus(status);
+        List<ObjectiveResponse> body = objectives.listMine(filter).stream()
                 .map(ObjectiveResponse::from)
                 .toList();
         return ApiResponse.of(body);
@@ -63,5 +68,16 @@ public class ObjectiveController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {
         objectives.delete(id);
+    }
+
+    private static ObjectiveStatus parseStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        try {
+            return ObjectiveStatus.fromValue(status);
+        } catch (IllegalArgumentException ex) {
+            throw ApiException.badRequest("Unknown status filter: " + status);
+        }
     }
 }

@@ -61,3 +61,20 @@ orbit:
     # JWT claim carrying granted authorities (array or space-delimited string).
     authorities-claim: ${OIDC_AUTHORITIES_CLAIM:roles}
     authorities-prefix: ${OIDC_AUTHORITIES_PREFIX:ROLE_}
+  # Priority Engine v1 (Blueprint §22, ADR-014). Weights must sum to 1.0 — the
+  # context refuses to start otherwise. Defaults are Blueprint §22's values.
+  priority:
+    weights:
+      career-relevance: 0.20
+      skill-gap: 0.20
+      dependency-impact: 0.15
+      project-impact: 0.15
+      interview-value: 0.10
+      urgency: 0.10
+      available-time-fit: 0.05
+      historical-completion-probability: 0.05
+  planning:
+    # Daily budget when the user's profile has no available_daily_minutes (ADR-015 §2).
+    default-available-minutes: 120
+    # Effort assumed for a task with no estimate, when packing a plan (ADR-015 §2).
+    default-task-minutes: 30

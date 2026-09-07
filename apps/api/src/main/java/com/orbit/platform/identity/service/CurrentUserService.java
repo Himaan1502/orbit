@@ -48,6 +48,22 @@ public class CurrentUserService {
         return users.findById(id).orElseGet(() -> provision(id, jwt));
     }
 
+    /** The current user's preferences row, provisioning the account if needed. */
+    @Transactional
+    public UserProfile getProfile() {
+        UUID id = getOrProvision().getId();
+        return profiles.findById(id).orElseGet(() -> profiles.save(UserProfile.forUser(id)));
+    }
+
+    /** Daily planning budget from the profile, or {@code fallback} when unset (ADR-015 §2). */
+    @Transactional(readOnly = true)
+    public int availableDailyMinutes(int fallback) {
+        return profiles.findById(currentUserId())
+                .map(UserProfile::getAvailableDailyMinutes)
+                .filter(m -> m > 0)
+                .orElse(fallback);
+    }
+
     private User provision(UUID id, Jwt jwt) {
         String email = jwt.getClaimAsString("email");
         if (email == null || email.isBlank()) {

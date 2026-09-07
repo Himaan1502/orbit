@@ -7,10 +7,12 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
 
@@ -51,6 +53,19 @@ public class GlobalExceptionHandler {
                         .build())
                 .build();
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+    }
+
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<ErrorResponse> handleBadRequest(Exception ex) {
+        log.warn("Bad request: {}", ex.getMessage());
+        ErrorResponse response = ErrorResponse.builder()
+                .error(ErrorResponse.ErrorDetail.builder()
+                        .code("BAD_REQUEST")
+                        .message("The request could not be understood.")
+                        .requestId(MDC.get("requestId"))
+                        .build())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(Exception.class)

@@ -1,10 +1,13 @@
 package com.orbit.platform.objectives.web.dto;
 
 import com.orbit.platform.objectives.model.Objective;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -23,7 +26,13 @@ public final class ObjectiveDtos {
             @Size(max = 5000, message = "Description is too long.")
             String description,
 
-            LocalDate targetDate) {
+            @Min(value = 1, message = "Priority is 1–5.")
+            @Max(value = 5, message = "Priority is 1–5.")
+            Integer priority,
+
+            LocalDate targetDate,
+
+            UUID careerTargetId) {
     }
 
     public record UpdateObjectiveRequest(
@@ -33,25 +42,35 @@ public final class ObjectiveDtos {
             @Size(max = 5000, message = "Description is too long.")
             String description,
 
+            @Min(value = 1, message = "Priority is 1–5.")
+            @Max(value = 5, message = "Priority is 1–5.")
+            Integer priority,
+
             @Pattern(regexp = "active|completed|archived", message = "Unknown status.")
             String status,
 
-            LocalDate targetDate) {
+            LocalDate targetDate,
+
+            UUID careerTargetId) {
     }
 
     public record ObjectiveResponse(
             UUID id,
             String title,
             String description,
+            int priority,
             String status,
+            BigDecimal progress,
             LocalDate targetDate,
+            UUID careerTargetId,
             Instant createdAt,
             Instant updatedAt) {
 
         public static ObjectiveResponse from(Objective o) {
             return new ObjectiveResponse(
-                    o.getId(), o.getTitle(), o.getDescription(), o.getStatus(),
-                    o.getTargetDate(), o.getCreatedAt(), o.getUpdatedAt());
+                    o.getId(), o.getTitle(), o.getDescription(), o.getPriority(),
+                    o.getStatus().value(), o.getProgress(), o.getTargetDate(),
+                    o.getCareerTargetId(), o.getCreatedAt(), o.getUpdatedAt());
         }
     }
 }

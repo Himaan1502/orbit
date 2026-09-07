@@ -3,6 +3,7 @@ package com.orbit.platform.objectives.service;
 import com.orbit.platform.common.exception.ApiException;
 import com.orbit.platform.identity.service.CurrentUserService;
 import com.orbit.platform.objectives.model.Objective;
+import com.orbit.platform.objectives.model.ObjectiveStatus;
 import com.orbit.platform.objectives.repository.ObjectiveRepository;
 import com.orbit.platform.objectives.web.dto.ObjectiveDtos.CreateObjectiveRequest;
 import com.orbit.platform.objectives.web.dto.ObjectiveDtos.UpdateObjectiveRequest;
@@ -14,13 +15,14 @@ import java.util.UUID;
 
 /**
  * Objective use-cases with resource-ownership enforced <em>server-side, on every
- * operation</em> (Tech Arch §9: "resource ownership is enforced independently of
- * UI"; Blueprint §36 threat model: IDOR / cross-user data access).
+ * operation</em> (Tech Arch §9; Blueprint §36 IDOR). Every lookup is scoped to
+ * {@code currentUserId()}; a request for an objective the caller does not own is
+ * answered {@code 404} — never {@code 403} — so existence is not disclosed
+ * (ADR-016 §5, the Milestone 1 pattern).
  *
- * <p>Every lookup is scoped to {@code currentUserId()}. A request for an
- * objective the caller does not own is indistinguishable from one that does not
- * exist — {@code 404}, never {@code 403} — so the API does not confirm the
- * existence of other users' resources (existence-disclosure hardening).
+ * <p>{@code status} auto-transitions and {@code progress} are owned by
+ * {@link ObjectiveProgressService}; they are never set through this service's
+ * {@code update}.
  */
 @Service
 public class ObjectiveService {
@@ -34,8 +36,11 @@ public class ObjectiveService {
     }
 
     @Transactional(readOnly = true)
-    public List<Objective> listMine() {
-        return objectives.findByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(currentUser.currentUserId());
+    public List<Objective> listMine(ObjectiveStatus status) {
+        UUID userId = currentUser.currentUserId();
+        return status == null
+                ? objectives.findByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(userId)
+                : objectives.findByUserIdAndStatusAndDeletedAtIsNullOrderByPriorityDescCreatedAtDesc(userId, status);
     }
 
     @Transactional(readOnly = true)
@@ -44,39 +49,63 @@ public class ObjectiveService {
                 .orElseThrow(() -> ApiException.notFound("Objective not found."));
     }
 
+    /** Ownership gate for nested resources (milestones, tasks). 404 if not the caller's. */
+    @Transactional(readOnly = true)
+    public Objective requireOwned(UUID objectiveId) {
+        return getMine(objectiveId);
+    }
+
     @Transactional
     public Objective create(CreateObjectiveRequest req) {
-        // Ensures the user's profile row exists before we reference it as owner.
         UUID userId = currentUser.getOrProvision().getId();
         return objectives.save(Objective.create(
                 userId,
                 req.title().strip(),
-                req.description() == null ? null : req.description().strip(),
-                req.targetDate()));
+                strip(req.description()),
+                req.priority(),
+                req.targetDate(),
+                req.careerTargetId()));
     }
 
     @Transactional
     public Objective update(UUID id, UpdateObjectiveRequest req) {
-        Objective objective = getMine(id);
+        Objective o = getMine(id);
         if (req.title() != null && !req.title().isBlank()) {
-            objective.setTitle(req.title().strip());
+            o.setTitle(req.title().strip());
         }
         if (req.description() != null) {
-            objective.setDescription(req.description().strip());
+            o.setDescription(strip(req.description()));
         }
-        if (req.status() != null && !req.status().isBlank()) {
-            objective.setStatus(req.status());
+        if (req.priority() != null) {
+            o.setPriority(req.priority());
         }
         if (req.targetDate() != null) {
-            objective.setTargetDate(req.targetDate());
+            o.setTargetDate(req.targetDate());
         }
-        return objectives.save(objective);
+        if (req.careerTargetId() != null) {
+            o.setCareerTargetId(req.careerTargetId());
+        }
+        if (req.status() != null && !req.status().isBlank()) {
+            // Only ARCHIVED / un-archive is manual; ACTIVE<->COMPLETED is derived.
+            ObjectiveStatus requested = ObjectiveStatus.fromValue(req.status());
+            if (requested == ObjectiveStatus.ARCHIVED || o.getStatus() == ObjectiveStatus.ARCHIVED) {
+                o.setStatus(requested);
+            } else {
+                throw ApiException.badRequest(
+                        "Objective status is derived from progress; only 'archived' can be set manually.");
+            }
+        }
+        return objectives.save(o);
     }
 
     @Transactional
     public void delete(UUID id) {
-        Objective objective = getMine(id);
-        objective.softDelete();
-        objectives.save(objective);
+        Objective o = getMine(id);
+        o.softDelete();
+        objectives.save(o);
+    }
+
+    private static String strip(String s) {
+        return s == null ? null : s.strip();
     }
 }
