@@ -17,9 +17,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * An executable unit of work (Blueprint §10). M2 subset: linked to an objective
- * and optionally a milestone; {@code project_id} / {@code skill_id} arrive with
- * their domains in M3+.
+ * An executable unit of work (Blueprint §10). Linked to an objective and
+ * optionally a milestone, a catalogue skill (M3), and a project (M5).
  */
 @Entity
 @Table(name = "tasks", schema = "orbit")
@@ -40,6 +39,10 @@ public class Task extends BaseEntity {
     /** Optional link to a catalogue skill (Blueprint §10). Drives the career/skill priority factors. */
     @Column(name = "skill_id")
     private UUID skillId;
+
+    /** Optional link to a project (Blueprint §14, M5). Drives the {@code projectImpact} priority factor. */
+    @Column(name = "project_id")
+    private UUID projectId;
 
     @Column(name = "title", nullable = false, length = 200)
     private String title;
@@ -67,13 +70,14 @@ public class Task extends BaseEntity {
     @Column(name = "completed_at")
     private Instant completedAt;
 
-    public static Task create(UUID userId, UUID objectiveId, UUID milestoneId, UUID skillId, String title,
-                              String description, Integer estimatedMinutes, Instant dueAt) {
+    public static Task create(UUID userId, UUID objectiveId, UUID milestoneId, UUID skillId, UUID projectId,
+                              String title, String description, Integer estimatedMinutes, Instant dueAt) {
         Task t = new Task();
         t.userId = userId;
         t.objectiveId = objectiveId;
         t.milestoneId = milestoneId;
         t.skillId = skillId;
+        t.projectId = projectId;
         t.title = title;
         t.description = description;
         t.estimatedMinutes = estimatedMinutes;

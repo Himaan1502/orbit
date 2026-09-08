@@ -27,6 +27,9 @@ public final class TaskDtos {
             /** Optional link to a catalogue skill — drives the career/skill priority factors. */
             UUID skillId,
 
+            /** Optional link to a project — drives the projectImpact priority factor (M5). */
+            UUID projectId,
+
             @NotBlank(message = "Title is required.")
             @Size(max = 200, message = "Title must be at most 200 characters.")
             String title,
@@ -56,6 +59,8 @@ public final class TaskDtos {
 
             UUID skillId,
 
+            UUID projectId,
+
             @Pattern(regexp = "todo|in_progress|blocked|skipped",
                     message = "Use POST /tasks/{id}/complete to complete a task.")
             String status) {
@@ -66,6 +71,7 @@ public final class TaskDtos {
             UUID objectiveId,
             UUID milestoneId,
             UUID skillId,
+            UUID projectId,
             String title,
             String description,
             Integer estimatedMinutes,
@@ -79,9 +85,9 @@ public final class TaskDtos {
 
         public static TaskResponse from(Task t) {
             return new TaskResponse(
-                    t.getId(), t.getObjectiveId(), t.getMilestoneId(), t.getSkillId(), t.getTitle(),
-                    t.getDescription(), t.getEstimatedMinutes(), t.getStatus().value(), t.getPriorityScore(),
-                    t.getPriorityReason(), t.getDueAt(), t.getCompletedAt(),
+                    t.getId(), t.getObjectiveId(), t.getMilestoneId(), t.getSkillId(), t.getProjectId(),
+                    t.getTitle(), t.getDescription(), t.getEstimatedMinutes(), t.getStatus().value(),
+                    t.getPriorityScore(), t.getPriorityReason(), t.getDueAt(), t.getCompletedAt(),
                     t.getCreatedAt(), t.getUpdatedAt());
         }
     }

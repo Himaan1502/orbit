@@ -9,6 +9,7 @@ import com.orbit.platform.execution.web.dto.TaskDtos.UpdateTaskRequest;
 import com.orbit.platform.identity.service.CurrentUserService;
 import com.orbit.platform.objectives.service.ObjectiveLookup;
 import com.orbit.platform.objectives.service.ObjectiveProgressService;
+import com.orbit.platform.projects.service.ProjectLookup;
 import com.orbit.platform.skills.service.SkillCatalog;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,17 +34,19 @@ public class TaskService {
     private final ObjectiveProgressService objectiveProgress;
     private final TaskScoringService scoring;
     private final SkillCatalog skillCatalog;
+    private final ProjectLookup projects;
     private final Clock clock;
 
     public TaskService(TaskRepository tasks, CurrentUserService currentUser, ObjectiveLookup objectives,
                        ObjectiveProgressService objectiveProgress, TaskScoringService scoring,
-                       SkillCatalog skillCatalog, Clock clock) {
+                       SkillCatalog skillCatalog, ProjectLookup projects, Clock clock) {
         this.tasks = tasks;
         this.currentUser = currentUser;
         this.objectives = objectives;
         this.objectiveProgress = objectiveProgress;
         this.scoring = scoring;
         this.skillCatalog = skillCatalog;
+        this.projects = projects;
         this.clock = clock;
     }
 
@@ -64,8 +67,9 @@ public class TaskService {
         requireOwnedObjective(req.objectiveId(), userId);
         requireMilestoneInObjective(req.milestoneId(), req.objectiveId());
         requireSkillExists(req.skillId());
+        requireOwnedProject(req.projectId(), userId);
 
-        Task task = Task.create(userId, req.objectiveId(), req.milestoneId(), req.skillId(),
+        Task task = Task.create(userId, req.objectiveId(), req.milestoneId(), req.skillId(), req.projectId(),
                 req.title().strip(), strip(req.description()), req.estimatedMinutes(), req.dueAt());
         scoring.rescore(task, userId);
         task = tasks.save(task);
@@ -97,6 +101,10 @@ public class TaskService {
         if (req.skillId() != null) {
             requireSkillExists(req.skillId());
             task.setSkillId(req.skillId());
+        }
+        if (req.projectId() != null) {
+            requireOwnedProject(req.projectId(), userId);
+            task.setProjectId(req.projectId());
         }
         if (req.status() != null && !req.status().isBlank()) {
             TaskStatus next = TaskStatus.fromValue(req.status());
@@ -146,6 +154,12 @@ public class TaskService {
     private void requireSkillExists(UUID skillId) {
         if (skillId != null && !skillCatalog.exists(skillId)) {
             throw ApiException.notFound("Skill not found.");
+        }
+    }
+
+    private void requireOwnedProject(UUID projectId, UUID userId) {
+        if (projectId != null && !projects.existsForUser(projectId, userId)) {
+            throw ApiException.notFound("Project not found.");
         }
     }
 

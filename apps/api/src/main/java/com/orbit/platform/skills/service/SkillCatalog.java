@@ -1,5 +1,7 @@
 package com.orbit.platform.skills.service;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -10,4 +12,7 @@ import java.util.UUID;
 public interface SkillCatalog {
 
     boolean exists(UUID skillId);
+
+    /** {@code skillId → canonical_name} for the given ids (missing ids are absent). */
+    Map<UUID, String> namesByIds(Collection<UUID> skillIds);
 }
