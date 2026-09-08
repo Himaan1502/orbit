@@ -1,7 +1,7 @@
 # ADR-023: Roadmap Progress & Intersection — Formulas and Heuristics
 
 ## Status
-Accepted — **progress formula, intersection ranking, and recommended-next-action bands flagged for product-owner sign-off** (see §4)
+Accepted — progress formula, intersection ranking, and recommended-action bands ratified by the product owner 2026-09-08
 
 ## Date
 2026-09-08

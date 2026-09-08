@@ -1,7 +1,7 @@
 # ADR-021: Roadmap Domain — Schema, Priority Tier, Topic Dependencies
 
 ## Status
-Accepted — **priority-tier semantics flagged for product-owner sign-off** (see §6)
+Accepted — priority-tier semantics and the `user_roadmaps` adoption table ratified by the product owner 2026-09-08
 
 ## Date
 2026-09-08
