@@ -44,6 +44,25 @@ this file from the relevant comment.
 
 ---
 
+## ✅ Closed in Milestone 5
+
+- **Projects domain** — Blueprint §14. `orbit.projects` + `project_skills`
+  (expected vs derived demonstrated contribution) + `tasks.project_id`, a
+  project reuses its linked objective's milestones.
+  [ADR-024](../adr/ADR-024-projects-domain.md).
+- **Evidence domain** — Blueprint §13. `orbit.evidence` + `skill_evidence` +
+  `project_evidence`; `self_attested` verification ceiling; evidence never
+  writes `skill_assessments`. [ADR-025](../adr/ADR-025-evidence-domain.md).
+- **Evidence-backed confidence + 4-way career readiness + `projectImpact`
+  factor swap** — a skill's assessment `confidence` now varies per skill from
+  its evidence (the score never moves); readiness blends
+  capability/interview/evidence/project coverage; the last Priority Engine
+  factor comes off its placeholder.
+  [ADR-026](../adr/ADR-026-evidence-backed-confidence-and-readiness.md).
+- Supersedes **"M5+ — Evidence & project coverage in career readiness"** below.
+
+---
+
 ## M5+ — Runtime roadmap importer
 
 **Context.** M4 loads the 13 roadmaps as a **Flyway versioned seed** (V7,
@@ -100,15 +119,17 @@ already express. An ADR when a real case appears.
 
 ---
 
-## M5/M6 — Evidence & Project coverage on roadmap detail
+## M6+ — Evidence & Project coverage on roadmap detail
 
 **Context.** UX §20 roadmap detail lists "evidence" and "related projects";
-[ADR-023](../adr/ADR-023-roadmap-progress-and-intersection.md) §5 excludes them —
-those domains do not exist (Blueprint M6).
+[ADR-023](../adr/ADR-023-roadmap-progress-and-intersection.md) §5 excludes them.
+As of **M5 the Evidence engine and Projects domain both exist** — but the
+roadmap detail page still does not surface them.
 
 **Deferred decision.** Surface a roadmap topic's evidence and the projects that
-exercised its skills once the Evidence engine (M5) and Projects domain (M6)
-land.
+exercised its skills — a read-only join from `roadmap_topic_skills` to
+`skill_evidence` / `project_skills`. No new domain work; a roadmaps-side query +
+UI section.
 
 ---
 
@@ -168,15 +189,15 @@ meaningful.
 
 ---
 
-## M5+ — Evidence & project coverage in career readiness
+## ✅ Resolved (2026-09-08, Milestone 5) — Evidence & project coverage in career readiness
 
-**Context.** [ADR-018](../adr/ADR-018-career-readiness.md) §3 — readiness blends
-only skill capability + interview readiness. Evidence coverage and project
-coverage render as `{value: null, weight: 0, status: "not-tracked-until-…"}`.
-
-**Deferred decision.** When the Evidence engine (M4) and Projects domain (M5)
-land, give each a real coverage signal and a non-zero weight; the blend already
-renormalises across whatever components are available.
+Readiness now blends four components —
+`skillCapability 0.45 / interviewReadiness 0.20 / evidenceCoverage 0.20 /
+projectCoverage 0.15` — all **computed**
+([ADR-026](../adr/ADR-026-evidence-backed-confidence-and-readiness.md) §2). The
+M3–M4 placeholder (`{value: null, weight: 0}`) is gone. **Note:** because the
+capability weight dropped `0.70 → 0.45`, an evidence-free target's readiness
+number is lower than under the old blend — intended.
 
 ---
 
@@ -198,13 +219,18 @@ interview-prep engines land.
 ## M4+ — Durable / async job runner
 
 **Context.** Daily-plan generation runs **inline** in the request
-([ADR-015](../adr/ADR-015-daily-plan-generation.md) §5). Blueprint §33 / Tech
-Arch §11 call for "a durable job mechanism appropriate to the Spring ecosystem".
+([ADR-015](../adr/ADR-015-daily-plan-generation.md) §5). M2 progress rollup, M3
+skill scoring, and now M5 `project_skills.demonstrated_contribution` recompute
+([ADR-026](../adr/ADR-026-evidence-backed-confidence-and-readiness.md) §3) all
+follow the same inline pattern. Blueprint §33 / Tech Arch §11 call for "a
+durable job mechanism appropriate to the Spring ecosystem".
 
 **Deferred decision.** Introduce the runner (Quartz, Spring Batch, or a
 DB-polling worker — its own ADR) when analytics aggregation (Blueprint §15) or
-scheduled plan refresh needs background work. `DailyPlanGenerator.generate(...)`
-is already a pure function such a runner can call directly.
+scheduled plan refresh needs background work, or when a single evidence/project
+edit fans out to enough recompute to be worth deferring. `DailyPlanGenerator`,
+`ProgressCalculator`, `SkillScoringEngine` and `DemonstratedContributionCalculator`
+are already pure functions such a runner can call directly.
 
 **Why not now.** Inline generation completes within the request for a single
 user; adding a runner before there is scheduled work to run is premature.
