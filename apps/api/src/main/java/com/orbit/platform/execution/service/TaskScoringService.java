@@ -10,6 +10,7 @@ import com.orbit.platform.execution.priority.PriorityReason;
 import com.orbit.platform.execution.repository.TaskRepository;
 import com.orbit.platform.identity.service.CurrentUserService;
 import com.orbit.platform.objectives.service.ObjectiveLookup;
+import com.orbit.platform.projects.service.TaskProjectSignals;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,17 +32,20 @@ public class TaskScoringService {
     private final PriorityEngine engine;
     private final ObjectiveLookup objectives;
     private final TaskCareerSignals careerSignals;
+    private final TaskProjectSignals projectSignals;
     private final TaskRepository tasks;
     private final CurrentUserService currentUser;
     private final PlanningProperties planning;
     private final Clock clock;
 
     public TaskScoringService(PriorityEngine engine, ObjectiveLookup objectives,
-                              TaskCareerSignals careerSignals, TaskRepository tasks,
-                              CurrentUserService currentUser, PlanningProperties planning, Clock clock) {
+                              TaskCareerSignals careerSignals, TaskProjectSignals projectSignals,
+                              TaskRepository tasks, CurrentUserService currentUser,
+                              PlanningProperties planning, Clock clock) {
         this.engine = engine;
         this.objectives = objectives;
         this.careerSignals = careerSignals;
+        this.projectSignals = projectSignals;
         this.tasks = tasks;
         this.currentUser = currentUser;
         this.planning = planning;
@@ -69,6 +73,8 @@ public class TaskScoringService {
         }
 
         TaskCareerSignals.Signals signals = careerSignals.forTask(task.getSkillId(), careerTargetId, userId);
+        Double projectImpact = projectSignals.projectImpact(
+                task.getProjectId(), task.getSkillId(), userId);
 
         long resolved = tasks.countByUserIdAndStatusInAndDeletedAtIsNull(
                 userId, List.of(TaskStatus.DONE, TaskStatus.SKIPPED));
@@ -86,6 +92,7 @@ public class TaskScoringService {
                 signals.skillGap(),
                 signals.dependencyImpact(),
                 signals.interviewValue(),
+                projectImpact,
                 now);
         return engine.score(input);
     }

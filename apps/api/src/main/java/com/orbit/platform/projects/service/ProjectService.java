@@ -40,16 +40,20 @@ public class ProjectService {
     private final ObjectiveLookup objectives;
     private final SkillCatalog skillCatalog;
     private final ProjectTaskStats taskStats;
+    private final ProjectDemonstratedContributionService demonstrated;
     private final CurrentUserService currentUser;
 
     public ProjectService(ProjectRepository projects, ProjectSkillRepository projectSkills,
                           ObjectiveLookup objectives, SkillCatalog skillCatalog,
-                          ProjectTaskStats taskStats, CurrentUserService currentUser) {
+                          ProjectTaskStats taskStats,
+                          ProjectDemonstratedContributionService demonstrated,
+                          CurrentUserService currentUser) {
         this.projects = projects;
         this.projectSkills = projectSkills;
         this.objectives = objectives;
         this.skillCatalog = skillCatalog;
         this.taskStats = taskStats;
+        this.demonstrated = demonstrated;
         this.currentUser = currentUser;
     }
 
@@ -99,6 +103,7 @@ public class ProjectService {
         if (req.skills() != null && !req.skills().isEmpty()) {
             replaceSkills(saved.getId(), req.skills());
         }
+        demonstrated.recompute(saved.getId());
         return getMine(saved.getId());
     }
 
@@ -131,6 +136,7 @@ public class ProjectService {
         if (req.skills() != null) {
             replaceSkills(id, req.skills());
         }
+        demonstrated.recompute(id);
         return getMine(id);
     }
 

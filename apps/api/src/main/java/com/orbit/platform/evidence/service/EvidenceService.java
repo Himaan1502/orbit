@@ -13,6 +13,7 @@ import com.orbit.platform.evidence.web.dto.EvidenceDtos.EvidenceProjectInput;
 import com.orbit.platform.evidence.web.dto.EvidenceDtos.EvidenceSkillInput;
 import com.orbit.platform.evidence.web.dto.EvidenceDtos.UpdateEvidenceRequest;
 import com.orbit.platform.identity.service.CurrentUserService;
+import com.orbit.platform.projects.service.ProjectDemonstratedRecompute;
 import com.orbit.platform.projects.service.ProjectLookup;
 import com.orbit.platform.skills.service.SkillCatalog;
 import org.slf4j.Logger;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -42,16 +44,19 @@ public class EvidenceService {
     private final ProjectEvidenceRepository projectLinks;
     private final SkillCatalog skillCatalog;
     private final ProjectLookup projects;
+    private final ProjectDemonstratedRecompute demonstratedRecompute;
     private final CurrentUserService currentUser;
 
     public EvidenceService(EvidenceRepository evidence, SkillEvidenceRepository skillLinks,
                            ProjectEvidenceRepository projectLinks, SkillCatalog skillCatalog,
-                           ProjectLookup projects, CurrentUserService currentUser) {
+                           ProjectLookup projects, ProjectDemonstratedRecompute demonstratedRecompute,
+                           CurrentUserService currentUser) {
         this.evidence = evidence;
         this.skillLinks = skillLinks;
         this.projectLinks = projectLinks;
         this.skillCatalog = skillCatalog;
         this.projects = projects;
+        this.demonstratedRecompute = demonstratedRecompute;
         this.currentUser = currentUser;
     }
 
@@ -114,6 +119,7 @@ public class EvidenceService {
 
         replaceSkillLinks(saved.getId(), req.skills());
         replaceProjectLinks(userId, saved.getId(), req.projects());
+        recomputeLinkedProjects(saved.getId(), Set.of());
 
         log.info("event=evidence.recorded user_id={} evidence_id={} type={} skills={} projects={}",
                 userId, saved.getId(), req.type(),
@@ -148,20 +154,42 @@ public class EvidenceService {
         }
         evidence.save(e);
 
+        Set<UUID> before = projectLinks.findByEvidenceId(id).stream()
+                .map(ProjectEvidence::getProjectId).collect(Collectors.toSet());
         if (req.skills() != null) {
             replaceSkillLinks(id, req.skills());
         }
         if (req.projects() != null) {
             replaceProjectLinks(e.getUserId(), id, req.projects());
         }
+        recomputeLinkedProjects(id, before);
         return getMine(id);
     }
 
     @Transactional
     public void delete(UUID id) {
         Evidence e = getMine(id).evidence();
+        Set<UUID> linkedProjects = projectLinks.findByEvidenceId(id).stream()
+                .map(ProjectEvidence::getProjectId).collect(Collectors.toSet());
+        // Drop the join rows outright — soft-deleted evidence must not keep counting
+        // toward a project's demonstrated_contribution or evidence count (ADR-026 §3).
+        skillLinks.deleteByEvidenceId(id);
+        projectLinks.deleteByEvidenceId(id);
         e.softDelete();
         evidence.save(e);
+        linkedProjects.forEach(demonstratedRecompute::recompute);
+    }
+
+    /**
+     * Recompute {@code demonstrated_contribution} for every project this evidence
+     * is now linked to, plus {@code alsoRecompute} (projects it was un-linked from
+     * by this same operation).
+     */
+    private void recomputeLinkedProjects(UUID evidenceId, Set<UUID> alsoRecompute) {
+        Set<UUID> ids = projectLinks.findByEvidenceId(evidenceId).stream()
+                .map(ProjectEvidence::getProjectId).collect(Collectors.toCollection(HashSet::new));
+        ids.addAll(alsoRecompute);
+        ids.forEach(demonstratedRecompute::recompute);
     }
 
     private void replaceSkillLinks(UUID evidenceId, List<EvidenceSkillInput> inputs) {

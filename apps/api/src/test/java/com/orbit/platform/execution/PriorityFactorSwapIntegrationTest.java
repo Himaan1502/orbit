@@ -108,7 +108,7 @@ class PriorityFactorSwapIntegrationTest extends AbstractApiIntegrationTest {
         // Docker attached but never assessed -> the assumed-gap constant.
         assertThat(swapped.path("skillGap").path("value").asDouble()).isCloseTo(0.7, org.assertj.core.data.Offset.offset(1e-6));
 
-        // projectImpact is still neutral; the weight set is byte-identical.
+        // neither task has a project -> projectImpact stays neutral; the weight set is byte-identical.
         assertThat(swapped.path("projectImpact").path("source").asText()).isEqualTo("neutral-default");
         assertThat(json.readTree(skilledTask).path("data").path("priorityReason").path("weightsFingerprint").asText())
                 .isEqualTo(plainFingerprint);

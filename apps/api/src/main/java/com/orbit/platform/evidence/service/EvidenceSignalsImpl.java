@@ -4,6 +4,7 @@ import com.orbit.platform.evidence.repository.ProjectEvidenceRepository;
 import com.orbit.platform.evidence.repository.SkillEvidenceRepository;
 import com.orbit.platform.evidence.repository.SkillEvidenceRepository.SkillEvidenceRow;
 import com.orbit.platform.projects.service.ProjectEvidenceCount;
+import com.orbit.platform.projects.service.ProjectSkillEvidenceStrength;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 

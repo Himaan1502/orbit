@@ -112,6 +112,13 @@ Recomputed inline when a project's status changes or its evidence links change
 join-table attribute, not a per-request score) but **only ever written by the
 calculator**, never by the API from a request body.
 
+Wiring: `projects` owns two read ports the `evidence` domain implements —
+`ProjectSkillEvidenceStrength` (the Σ above) and `ProjectEvidenceCount` — and a
+`ProjectDemonstratedRecompute` port `evidence` calls after a link change. So the
+recompute runs inside `projects` while `projects` keeps zero compile-time
+dependency on `evidence` (Blueprint §5 — cross-domain calls go through
+interfaces the consumer owns).
+
 ### 4. Priority Engine — the final factor swap (`projectImpact`)
 
 Same mechanism as the M3 swap ([ADR-014](ADR-014-priority-engine-v1.md), formula

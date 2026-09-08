@@ -21,13 +21,13 @@ class PriorityEngineTest {
 
     private PriorityInput input(Instant dueAt, int objectivePriority, Integer estimate) {
         return new PriorityInput(dueAt, null, objectivePriority, estimate, 120, 0, 0,
-                null, null, null, null, NOW);
+                null, null, null, null, null, NOW);
     }
 
-    private PriorityInput withSignals(Double careerRelevance, Double skillGap,
-                                      Double dependencyImpact, Double interviewValue) {
+    private PriorityInput withSignals(Double careerRelevance, Double skillGap, Double dependencyImpact,
+                                      Double interviewValue, Double projectImpact) {
         return new PriorityInput(NOW.plus(3, ChronoUnit.DAYS), null, 3, 30, 120, 0, 0,
-                careerRelevance, skillGap, dependencyImpact, interviewValue, NOW);
+                careerRelevance, skillGap, dependencyImpact, interviewValue, projectImpact, NOW);
     }
 
     @Test
@@ -86,7 +86,7 @@ class PriorityEngineTest {
     }
 
     @Test
-    void withoutCareerSignalsFactorsFallBackToNeutralAndProxy() {
+    void withoutSignalsFactorsFallBackToNeutralAndProxy() {
         PriorityReason r = engine.score(input(NOW.plus(3, ChronoUnit.DAYS), 3, 30));
         for (String name : new String[] {"skillGap", "dependencyImpact", "projectImpact", "interviewValue"}) {
             assertThat(r.factors().get(name).value()).isEqualTo(0.5);
@@ -99,9 +99,9 @@ class PriorityEngineTest {
     }
 
     @Test
-    void realCareerSignalsReplaceTheNeutralDefaultsWithoutChangingTheFormula() {
-        PriorityReason baseline = engine.score(withSignals(null, null, null, null));
-        PriorityReason withReal = engine.score(withSignals(0.9, 0.8, 0.7, 0.6));
+    void realSignalsReplaceEveryNeutralDefaultWithoutChangingTheFormula() {
+        PriorityReason baseline = engine.score(withSignals(null, null, null, null, null));
+        PriorityReason withReal = engine.score(withSignals(0.9, 0.8, 0.7, 0.6, 0.55));
 
         // formula/weights unchanged — same factor set, same weights, same fingerprint
         assertThat(withReal.factors().keySet()).isEqualTo(baseline.factors().keySet());
@@ -112,11 +112,13 @@ class PriorityEngineTest {
         assertThat(withReal.factors().get("skillGap").value()).isEqualTo(0.8);
         assertThat(withReal.factors().get("dependencyImpact").value()).isEqualTo(0.7);
         assertThat(withReal.factors().get("interviewValue").value()).isEqualTo(0.6);
-        assertThat(withReal.factors().get("skillGap").source()).isEqualTo("computed");
-        // projectImpact stays neutral (Projects domain is M5)
-        assertThat(withReal.factors().get("projectImpact").source()).isEqualTo("neutral-default");
+        // M5 — projectImpact is now a real signal too; no factor is left on a placeholder
+        assertThat(withReal.factors().get("projectImpact").value()).isEqualTo(0.55);
+        assertThat(withReal.factors().get("projectImpact").source()).isEqualTo("computed");
+        for (String name : new String[] {"skillGap", "dependencyImpact", "interviewValue", "projectImpact"}) {
+            assertThat(withReal.factors().get(name).source()).isEqualTo("computed");
+        }
 
-        // real signals above neutral -> a higher score
         assertThat(withReal.score()).isGreaterThan(baseline.score());
     }
 
@@ -140,7 +142,7 @@ class PriorityEngineTest {
 
     private PriorityInput signalless(long resolved, long done) {
         return new PriorityInput(null, null, 3, 30, 120, resolved, done,
-                null, null, null, null, NOW);
+                null, null, null, null, null, NOW);
     }
 
     private static double factor(PriorityReason r, String name) {

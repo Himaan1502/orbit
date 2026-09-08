@@ -51,11 +51,13 @@ public interface SkillEvidenceRepository extends JpaRepository<SkillEvidence, Sk
     List<SkillEvidenceRow> findForUserAndSkills(@Param("userId") UUID userId,
                                                 @Param("skillIds") Collection<UUID> skillIds);
 
-    /** Σ contribution_weight of evidence linked to both a skill and a project (ADR-026 §3). */
+    /** Σ contribution_weight of live evidence linked to both a skill and a project (ADR-026 §3). */
     @Query("""
             select coalesce(sum(se.contributionWeight), 0)
             from SkillEvidence se
+              join Evidence e on e.id = se.evidenceId
             where se.skillId = :skillId
+              and e.deletedAt is null
               and se.evidenceId in (select pe.evidenceId from ProjectEvidence pe where pe.projectId = :projectId)
             """)
     java.math.BigDecimal sumWeightForProjectAndSkill(@Param("projectId") UUID projectId,

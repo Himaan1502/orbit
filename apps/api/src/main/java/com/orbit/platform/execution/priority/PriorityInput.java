@@ -7,10 +7,11 @@ import java.time.LocalDate;
  * Everything {@link PriorityEngine} needs to score one task — a pure value
  * object, assembled by the caller. No entities, no repositories.
  *
- * <p>The four {@code *Signal} fields are the real career/skill inputs
- * (ADR-014 factor-provider swap, ADR-018/019). Each is {@code null} when it
- * cannot be computed for this task — the engine then falls back to its
+ * <p>The five {@code *Signal} fields are the real career / skill / project
+ * inputs (ADR-014 factor-provider swap, ADR-018/019/026). Each is {@code null}
+ * when it cannot be computed for this task — the engine then falls back to its
  * Milestone-2 neutral / proxy default, so the formula and weights are unchanged.
+ * After M5 no factor is left on a placeholder.
  *
  * @param dueAt                    the task's own deadline, or {@code null}
  * @param objectiveTargetDate      the parent objective's target date, or {@code null}
@@ -23,6 +24,7 @@ import java.time.LocalDate;
  * @param skillGapSignal           real skillGap 0..1, or {@code null}
  * @param dependencyImpactSignal   real dependencyImpact 0..1, or {@code null}
  * @param interviewValueSignal     real interviewValue 0..1, or {@code null}
+ * @param projectImpactSignal      real projectImpact 0..1, or {@code null} (M5, ADR-026 §4)
  * @param referenceInstant         "now" for urgency — explicit so scoring is reproducible
  */
 public record PriorityInput(
@@ -37,5 +39,6 @@ public record PriorityInput(
         Double skillGapSignal,
         Double dependencyImpactSignal,
         Double interviewValueSignal,
+        Double projectImpactSignal,
         Instant referenceInstant) {
 }

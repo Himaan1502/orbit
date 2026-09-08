@@ -45,8 +45,9 @@ public class PriorityEngine {
                 weights.getDependencyImpact(),
                 "this skill is a prerequisite for other target skills",
                 "no skill attached, or skill not in the dependency graph");
-        add(factors, "projectImpact", 0.5, weights.getProjectImpact(), NEUTRAL,
-                "Projects domain not yet available");
+        signalOrNeutral(factors, "projectImpact", in.projectImpactSignal(), weights.getProjectImpact(),
+                "how much this task advances a project that builds your target skills",
+                "no project attached to this task");
         signalOrNeutral(factors, "interviewValue", in.interviewValueSignal(), weights.getInterviewValue(),
                 "interview weight of this skill for your target", "no skill / target on this task");
 
