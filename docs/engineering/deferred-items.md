@@ -33,6 +33,85 @@ this file from the relevant comment.
 
 ---
 
+## ✅ Closed in Milestone 4
+
+- **Roadmap domain + ingestion** — Blueprint §11/§20/§25. 13 curated roadmap.sh
+  roadmaps normalized to topics + canonical skills, seeded (V6 schema, V7 data),
+  augmenting the M3 catalog. [ADR-021](../adr/ADR-021-roadmap-domain-and-schema.md),
+  [ADR-022](../adr/ADR-022-roadmap-ingestion.md).
+- **Derived roadmap progress + Roadmap Intersection** — Blueprint §32, PRD §5.
+  [ADR-023](../adr/ADR-023-roadmap-progress-and-intersection.md).
+
+---
+
+## M5+ — Runtime roadmap importer
+
+**Context.** M4 loads the 13 roadmaps as a **Flyway versioned seed** (V7,
+[ADR-022](../adr/ADR-022-roadmap-ingestion.md) §1). `roadmaps.last_verified_at`
+records when a human last checked the source.
+
+**Deferred decision.** A re-runnable import command / job that fetches roadmap.sh
+JSON, normalizes it, and upserts topics + skill mappings + edges (still through
+`SkillGraphValidator`), for when the source changes and a curated re-seed is too
+manual. Needs an outbound HTTP dependency and a normalization pipeline.
+
+**Why not now.** One-time load of curated data; `ON CONFLICT` keeps a later
+hand-refresh safe.
+
+---
+
+## M5+ — `user_roadmaps.last_activity_at`
+
+**Context.** [ADR-021](../adr/ADR-021-roadmap-domain-and-schema.md) §5 —
+`user_roadmaps` carries `started_at` and `target_date` but **not**
+`last_activity_at` (it was in the product owner's suggested shape).
+
+**Deferred decision.** Bump `last_activity_at` when a task tied to a skill in the
+roadmap is completed, or a skill in the roadmap is re-assessed — needs a hook
+from `execution` / `skills` into `roadmaps`. Add it with that hook.
+
+---
+
+## M4+ — Roadmap-tier as a Priority Engine signal
+
+**Context.** [ADR-021](../adr/ADR-021-roadmap-domain-and-schema.md) §6 — roadmap
+`priority_tier` (P1/P2/P3) drives **UI surfacing only**. The product owner asked
+for the caution on record that tier "should not be the entire score"; an urgent
+P2/P3 task must still be able to outscore a less-urgent P1 task.
+
+**Deferred decision.** *If* usage shows tier should nudge task priority, add it
+as a **new** small-weight `PriorityInput` signal (the M3 factor-swap pattern —
+formula and existing weights unchanged, [ADR-014](../adr/ADR-014-priority-engine-v1.md)),
+never as an override. Requires product-owner sign-off on the weight.
+
+**Why not now.** No evidence it is needed; ADR-014's formula is frozen.
+
+---
+
+## M5+ — `roadmap_topic_dependencies` table
+
+**Context.** [ADR-021](../adr/ADR-021-roadmap-domain-and-schema.md) §4 — M4 has
+no per-roadmap topic-dependency edges; intra-roadmap order is `sort_order` + the
+global `skill_dependencies` graph.
+
+**Deferred decision.** Add the table (with its own cycle validation) only if a
+roadmap needs a hard "topic A before topic B" gate that the skill graph does not
+already express. An ADR when a real case appears.
+
+---
+
+## M5/M6 — Evidence & Project coverage on roadmap detail
+
+**Context.** UX §20 roadmap detail lists "evidence" and "related projects";
+[ADR-023](../adr/ADR-023-roadmap-progress-and-intersection.md) §5 excludes them —
+those domains do not exist (Blueprint M6).
+
+**Deferred decision.** Surface a roadmap topic's evidence and the projects that
+exercised its skills once the Evidence engine (M5) and Projects domain (M6)
+land.
+
+---
+
 ## ✅ Closed in Milestone 3 — Priority Engine: real factor providers (partial)
 
 Four of the five career/skill factors now compute from real data

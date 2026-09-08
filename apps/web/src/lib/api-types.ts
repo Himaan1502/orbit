@@ -249,3 +249,98 @@ export interface CareerGaps {
   criticalGaps: CriticalGap[];
   highLeverageSkills: HighLeverageSkill[];
 }
+
+// ===== Milestone 4 — Roadmaps (Blueprint §11/§20/§32, ADR-021/022/023) =====
+
+export type RoadmapTopicStatus = 'covered' | 'in_progress' | 'not_started';
+
+export interface RoadmapSummary {
+  id: string;
+  name: string;
+  tier: string; // "P1" | "P2" | "P3"
+  priorityTier: number; // 1 | 2 | 3
+  sourceName: string;
+  sourceUrl: string;
+  description: string | null;
+  status: string;
+  /** Derived from the caller's assessments × topic relevance, 0..1 (ADR-023). */
+  coverage: number;
+  adopted: boolean;
+  skillCount: number;
+}
+
+export interface RoadmapSkillLink {
+  skillId: string;
+  name: string;
+  relevance: number;
+  capability: number | null;
+}
+
+export interface RoadmapTopic {
+  id: string;
+  parentTopicId: string | null;
+  name: string;
+  sortOrder: number;
+  sourceUrl: string | null;
+  status: RoadmapTopicStatus;
+  coverage: number;
+  skills: RoadmapSkillLink[];
+}
+
+export interface RoadmapNextTopic {
+  topicId: string;
+  name: string;
+  readiness: number;
+  weightedGap: number;
+  reason: string;
+}
+
+export interface RoadmapAdoption {
+  roadmapId: string;
+  status: 'active' | 'paused';
+  startedAt: string;
+  targetDate: string | null;
+}
+
+export interface RoadmapDetail {
+  id: string;
+  name: string;
+  tier: string;
+  priorityTier: number;
+  sourceName: string;
+  sourceUrl: string;
+  description: string | null;
+  lastVerifiedAt: string | null;
+  status: string;
+  coverage: number;
+  topicCount: number;
+  coveredTopicCount: number;
+  adoption: RoadmapAdoption | null;
+  topics: RoadmapTopic[];
+  recommendedNext: RoadmapNextTopic[];
+}
+
+export interface RoadmapRef {
+  id: string;
+  name: string;
+  tier: string;
+}
+
+export interface SharedSkill {
+  skillId: string;
+  name: string;
+  roadmapCount: number;
+  contributesTo: RoadmapRef[];
+  capability: number | null;
+  careerImportance: number | null;
+  /** "HIGH" | "MEDIUM" | "LOW" | null */
+  careerRelevance: string | null;
+  leverage: number;
+  recommendedAction: string;
+}
+
+export interface RoadmapIntersection {
+  roadmaps: RoadmapRef[];
+  sharedSkillCount: number;
+  sharedSkills: SharedSkill[];
+}

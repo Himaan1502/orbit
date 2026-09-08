@@ -94,3 +94,12 @@ orbit:
     readiness:
       skill-capability-weight: 0.70
       interview-readiness-weight: 0.30
+  # Derived roadmap progress + intersection tunables (ADR-023 §4). Fractions in
+  # [0,1]; startup-validated (RoadmapsConfig). Starting values — tune later.
+  roadmaps:
+    topic-covered-threshold: 0.70
+    career-relevance-high: 0.66
+    career-relevance-medium: 0.40
+    action-band-build: 0.30
+    action-band-operate: 0.60
+    action-band-maintain: 0.85

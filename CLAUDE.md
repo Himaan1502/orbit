@@ -145,6 +145,36 @@ All M3 sign-off items (skill scoring weights, readiness blend, `careerRelevance`
 proxy fallback, `confidence: self-reported` ceiling) — **ratified by the product
 owner 2026-09-08**.
 
+### Milestone 4 (Roadmaps) — verified 2026-09-08
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Roadmap domain + schema (Blueprint §11) | ✅ | V6 migration: `orbit.roadmaps` (+ `priority_tier` P1/P2/P3, `external_identifier` UNIQUE, source attribution), `roadmap_topics` (self-ref tree, `sort_order`), `roadmap_topic_skills` (`relevance`, one skill ↔ many roadmaps), `user_roadmaps` (lean per-user adoption). No `roadmap_topic_dependencies` table — topic order is `sort_order` + the skill graph ([ADR-021](docs/adr/ADR-021-roadmap-domain-and-schema.md)). |
+| Ingestion of the 13 curated roadmaps | ✅ | V7 seed (Flyway versioned, `uuid5`, `ON CONFLICT DO NOTHING`) — 13 roadmaps, 125 normalized topics, 183 topic→skill mappings. **Augments** the M3 catalog: +65 canonical skills, +83 `skill_dependencies` edges (manifest in the migration header). No third-party prose — authored labels + `source_url` attribution only (PRD Non-Goal, Blueprint §25). Idempotent: `RoadmapSeedIdempotencyIntegrationTest` re-runs the seed → 0 rows changed. Live: applied V6→V7 **on top of the populated pilot DB**, `Skill dependency graph verified acyclic (124 edges)`, `Roadmap catalog: 13 roadmaps, 125 topics, 183 topic→skill mappings`. [ADR-022](docs/adr/ADR-022-roadmap-ingestion.md). |
+| Roadmap read API (Blueprint §20) | ✅ | `GET /api/v1/roadmaps` (tier-ordered library + derived coverage + adopted flag), `/roadmaps/{id}` (topic tree + per-topic status + recommended-next + adoption), `/roadmaps/{id}/topics`. `PUT/DELETE /roadmaps/{id}/adoption` — idempotent; `DELETE` when not adopted → `404` (M1 pattern). |
+| Derived roadmap progress | ✅ | Pure `RoadmapProgressCalculator` ([ADR-023](docs/adr/ADR-023-roadmap-progress-and-intersection.md)) — coverage = relevance-weighted mean capability; per-topic status (`covered ≥ 0.70` / `in_progress` / `not_started`); recommended-next ranked by prerequisite-readiness then weighted gap. **Not stored** — derived, reproducible. `RoadmapProgressCalculatorTest` (5). |
+| Roadmap Intersection (Blueprint §32, PRD §5) | ✅ | `GET /api/v1/roadmaps/intersections?roadmapIds=…` (default: the caller's adopted roadmaps; `< 2` → `400`; unknown id → `404`). Shared skills across the set, each with contributes-to list, career relevance (reuses the M3 `career` domain via a new `PrimaryCareerSkillWeights` port), capability, `SkillGraph.leverage`, and a capability-band recommended action. Ranked `roadmapCount → careerRelevance → leverage → gap`. One indexed `GROUP BY` (M5 acceptance "queried efficiently"). `RoadmapIntersectionIntegrationTest` (4). |
+| Priority Engine | ✅ | **Untouched.** `priority_tier` is surfacing-only and read by nothing in `PriorityEngine` / `PriorityInput` / `TaskScoringService` (ADR-021 §6, ADR-014 frozen). A roadmap-tier priority signal is a flagged future candidate, not built. |
+| Web — Roadmaps | ✅ | Real `/roadmaps` (P1/P2/P3 grouped + ordered, coverage bars, Compare mode → intersection), `/roadmaps/[id]` (coverage ring, source link, recommended-next, topic tree with skill capability), `/roadmaps/intersection` (shared-skill matrix, overlap made visually obvious per UX §20). TanStack Query via the ADR-013 BFF proxy. `buildTopicTree` + `tree.test.ts` (3). |
+| Ownership enforcement (404) | ✅ | `user_roadmaps` keyed by `(user_id, roadmap_id)` — cross-user access structurally impossible; `DELETE` of an un-adopted roadmap → 404. `RoadmapIntegrationTest` (6, incl. Alice/Bob isolation). |
+| Tests | ✅ | `apps/api` `./gradlew clean build` — `BUILD SUCCESSFUL`, **104 tests** (0 failures), Checkstyle 0, SpotBugs 0. `apps/auth` `clean build` — 12 tests. `apps/web` `build` (19 routes) / `lint` / `format:check` / `tsc` clean, `vitest` 12/12. |
+| Full browser E2E | ✅ | Playwright vs compose: signup → roadmap library (13, tier-grouped) → DevOps detail (source attribution, topic tree, recommended-next) → self-assess Docker+Kubernetes → coverage moves off 0% → adopt → Compare DevOps+MLOps+DevSecOps → intersection shows shared Kubernetes/Docker/CI-CD → shared skill links through to `/skills/[id]`. |
+| `docker compose` (all 5) | ✅ | 2026-09-08 — `build orbit-api orbit-web` → `up -d` (no `-v`) → all 5 `Up (healthy)`; Flyway V6→V7 applied **on the existing pilot DB**, pilot account `himaanshu15028@gmail.com` **survived**. Torn down with `docker compose down` (no `-v`). Docker Desktop stable all session. |
+
+Not in scope for M4 and still open: roadmap *generation* (OSCAR/LLM custom
+roadmaps), a runtime roadmap importer (M4 is a curated Flyway seed), roadmap
+detail ↔ Projects/Evidence (M5/M6), `user_roadmaps.last_activity_at` (needs an
+activity hook), stored progress/trend, a roadmap-tier Priority Engine signal, a
+`roadmap_topic_dependencies` table. See
+[deferred-items.md](docs/engineering/deferred-items.md).
+
+M4 ADRs: [ADR-021](docs/adr/ADR-021-roadmap-domain-and-schema.md) (schema +
+**priority-tier semantics need sign-off**),
+[ADR-022](docs/adr/ADR-022-roadmap-ingestion.md) (ingestion + **catalog
+additions need sign-off**),
+[ADR-023](docs/adr/ADR-023-roadmap-progress-and-intersection.md) (**progress
+formula / intersection ranking / recommended-action bands need sign-off**).
+
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:
 [ADR-011](docs/adr/ADR-011-authorization-server-persistence.md),
