@@ -26,6 +26,18 @@ the specs win.
   documenting the decision and reasoning, then proceed — don't stall on minor
   decisions, but do flag anything that changes product scope.
 
+## Verification practice
+- The compose `postgres_data` volume holds the owner's **real pilot account and
+  data** — it is production-like state, not a test fixture. Routine
+  between-milestone verification tears down with **`docker compose down` (no
+  `-v`)**. Applying a new milestone's migrations on top of the populated DB is
+  the more realistic test anyway.
+- Use `docker compose down -v` **only** when the specific goal is running
+  migrations against a genuinely empty database, and say so **before** running
+  it so the owner expects the reset and can re-signup. Never `-v` as a default
+  cleanup step.
+- The hermetic Testcontainers suite already gives throwaway DBs for tests.
+
 ## Current status
 
 Milestone 0 (Architecture & Repository Bootstrap) — verified 2026-09-06.
@@ -115,7 +127,7 @@ M2 ADRs: [ADR-014](docs/adr/ADR-014-priority-engine-v1.md) (priority weights —
 | Ownership enforcement (404) | ✅ | Extended to career targets and skill assessments. `CareerIntegrationTest` (7), `SkillsIntegrationTest` (4). Live E2E + tests: user B → 404 on user A's target; objective can only link a target the caller owns. |
 | Tests | ✅ | `apps/api` `./gradlew clean build` — `BUILD SUCCESSFUL`, **84 tests** (0 failures), Checkstyle 0, SpotBugs 0 (fixed one latent M2 dead-store while here). `apps/auth` `build` — `BUILD SUCCESSFUL`, 12 tests. `apps/web` `build` (18 routes) / `lint` / `format:check` / `tsc` clean, `vitest` 9/9. |
 | Full browser E2E | ✅ | Playwright vs compose: signup → browse catalog → self-assess Kubernetes → create a career target from the Platform Engineer template → readiness + gaps render (computed components + explicit not-tracked) → link an objective → the linked objective's task shows `careerRelevance` as **computed**, an unlinked objective's stays **proxy**. |
-| `docker compose` (all 5) | ✅ | 2026-09-07 — clean `down -v` → `build orbit-api orbit-web` → `up -d` → `docker compose ps` all 5 `Up (healthy)`; Flyway V1→V5 applied; acyclic-graph runner passed. Docker Desktop was **stable** for the entire M3 session (build + up + two full E2E runs). |
+| `docker compose` (all 5) | ✅ | 2026-09-07 — `down -v` → `build orbit-api orbit-web` → `up -d` → `docker compose ps` all 5 `Up (healthy)`; Flyway V1→V5 applied; acyclic-graph runner passed. Docker Desktop was **stable** for the entire M3 session (build + up + two full E2E runs). ⚠️ The `-v` here wiped the owner's pilot data — see "Verification practice"; M4+ tears down without `-v`. |
 
 Not in scope for M3 and still open: per-career-target skill scoring weight
 overrides, readiness trend/history, evidence & project coverage in readiness
