@@ -168,13 +168,13 @@ activity hook), stored progress/trend, a roadmap-tier Priority Engine signal, a
 `roadmap_topic_dependencies` table. See
 [deferred-items.md](docs/engineering/deferred-items.md).
 
-M4 ADRs: [ADR-021](docs/adr/ADR-021-roadmap-domain-and-schema.md) (schema,
-priority-tier semantics, `user_roadmaps` — **ratified 2026-09-08**),
-[ADR-022](docs/adr/ADR-022-roadmap-ingestion.md) (ingestion; the **65 new
-catalog skills + 83 edges and the topic curation still need sign-off**),
-[ADR-023](docs/adr/ADR-023-roadmap-progress-and-intersection.md) (progress
-formula / intersection ranking / recommended-action bands — **ratified
-2026-09-08**).
+M4 ADRs — **all ratified by the product owner 2026-09-08**:
+[ADR-021](docs/adr/ADR-021-roadmap-domain-and-schema.md) (schema, priority-tier
+semantics, `user_roadmaps`), [ADR-022](docs/adr/ADR-022-roadmap-ingestion.md)
+(ingestion — the 65 new catalog skills + 83 edges + the 13-roadmap topic
+curation), [ADR-023](docs/adr/ADR-023-roadmap-progress-and-intersection.md)
+(progress formula / intersection ranking / recommended-action bands). Milestone
+4 fully closed.
 
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:

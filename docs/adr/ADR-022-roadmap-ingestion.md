@@ -1,7 +1,7 @@
 # ADR-022: Roadmap Ingestion — Mechanism, Normalization, Attribution, Catalog Augmentation
 
 ## Status
-Accepted — **ingested catalog additions (new skills / edges) flagged for product-owner sign-off** (see §5)
+Accepted — the 65 new catalog skills, 83 new edges, and the 13-roadmap topic curation ratified by the product owner 2026-09-08 (after reviewing the detail pages + the roadmap.sh sources)
 
 ## Date
 2026-09-08
