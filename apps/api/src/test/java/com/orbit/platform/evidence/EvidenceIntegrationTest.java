@@ -99,14 +99,18 @@ class EvidenceIntegrationTest extends AbstractApiIntegrationTest {
     @Test
     void creatingEvidenceNeverWritesASkillAssessmentRow() throws Exception {
         var u = user(UUID.randomUUID());
-        long before = jdbc.queryForObject("SELECT count(*) FROM orbit.skill_assessments", Long.class);
+        long before = assessmentCount();
 
         mockMvc.perform(post("/api/v1/evidence").with(u).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"deployment\",\"title\":\"shipped it\",\"skills\":[{\"skillId\":\"" + KUBERNETES + "\"}]}"))
                 .andExpect(status().isCreated());
 
-        long after = jdbc.queryForObject("SELECT count(*) FROM orbit.skill_assessments", Long.class);
-        assertThat(after).as("ADR-025 §5 — evidence must not create an assessment").isEqualTo(before);
+        assertThat(assessmentCount()).as("ADR-025 §5 — evidence must not create an assessment").isEqualTo(before);
+    }
+
+    private long assessmentCount() {
+        Long v = jdbc.queryForObject("SELECT count(*) FROM orbit.skill_assessments", Long.class);
+        return v == null ? 0L : v;
     }
 
     @Test

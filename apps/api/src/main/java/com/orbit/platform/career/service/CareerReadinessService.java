@@ -8,7 +8,9 @@ import com.orbit.platform.career.readiness.CareerReadinessCalculator.Readiness;
 import com.orbit.platform.career.readiness.CareerReadinessCalculator.TargetSkill;
 import com.orbit.platform.career.readiness.ReadinessProperties;
 import com.orbit.platform.common.exception.ApiException;
+import com.orbit.platform.evidence.service.SkillEvidenceSignals;
 import com.orbit.platform.identity.service.CurrentUserService;
+import com.orbit.platform.projects.service.ProjectSkillCoverage;
 import com.orbit.platform.skills.model.Skill;
 import com.orbit.platform.skills.model.SkillAssessment;
 import com.orbit.platform.skills.repository.SkillRepository;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -35,16 +38,21 @@ public class CareerReadinessService {
     private final SkillRepository skills;
     private final SkillService skillService;
     private final SkillGraphService graphService;
+    private final SkillEvidenceSignals evidenceSignals;
+    private final ProjectSkillCoverage projectCoverage;
     private final CurrentUserService currentUser;
     private final ReadinessProperties properties;
 
     public CareerReadinessService(CareerTargetService targets, SkillRepository skills,
                                   SkillService skillService, SkillGraphService graphService,
+                                  SkillEvidenceSignals evidenceSignals, ProjectSkillCoverage projectCoverage,
                                   CurrentUserService currentUser, ReadinessProperties properties) {
         this.targets = targets;
         this.skills = skills;
         this.skillService = skillService;
         this.graphService = graphService;
+        this.evidenceSignals = evidenceSignals;
+        this.projectCoverage = projectCoverage;
         this.currentUser = currentUser;
         this.properties = properties;
     }
@@ -77,8 +85,13 @@ public class CareerReadinessService {
                         e -> new Capability(e.getValue().overall(),
                                 e.getValue().dimensions().interview())));
 
+        Set<UUID> targetSkillIds = cts.stream().map(CareerTargetSkill::getSkillId).collect(Collectors.toSet());
+        Map<UUID, Double> evidenceStrength = evidenceSignals.strengthBySkill(userId, targetSkillIds);
+        Map<UUID, Double> projectDemonstrated = projectCoverage.demonstratedBySkill(userId, targetSkillIds);
+
         Readiness r = CareerReadinessCalculator.compute(
-                targetSkills, capabilities, graphService.graph(), properties);
+                targetSkills, capabilities, evidenceStrength, projectDemonstrated,
+                graphService.graph(), properties);
         return new NamedReadiness(target.getId(), target.getName(), r);
     }
 }

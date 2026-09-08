@@ -88,12 +88,16 @@ orbit:
         evidence: 0.20
         interview: 0.15
         production: 0.20
-  # Career readiness component blend (ADR-018 §1). Applies among the components
-  # that have data; renormalised as more components (evidence, projects) land.
+  # Career readiness component blend (ADR-018 §1, amended by ADR-026 §2). Must
+  # sum to 1.0 — the context refuses to start otherwise. Renormalised among the
+  # components that have data. Ratified 2026-09-08.
   career:
     readiness:
-      skill-capability-weight: 0.70
-      interview-readiness-weight: 0.30
+      skill-capability-weight: 0.45
+      interview-readiness-weight: 0.20
+      evidence-coverage-weight: 0.20
+      project-coverage-weight: 0.15
+      evidence-gap-capability-bar: 0.50
   # Derived roadmap progress + intersection tunables (ADR-023 §4). Fractions in
   # [0,1]; startup-validated (RoadmapsConfig). Starting values — tune later.
   roadmaps:
@@ -103,3 +107,9 @@ orbit:
     action-band-build: 0.30
     action-band-operate: 0.60
     action-band-maintain: 0.85
+  # Evidence -> skill-assessment confidence (ADR-026 §1). Evidence raises
+  # confidence, never a dimension score. Startup-validated.
+  evidence:
+    partial-threshold: 0.40
+    verified-threshold: 1.00
+    verified-min-types: 2

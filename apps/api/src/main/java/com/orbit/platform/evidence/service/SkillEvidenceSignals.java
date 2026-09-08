@@ -4,6 +4,7 @@ import com.orbit.platform.evidence.model.EvidenceType;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -23,4 +24,7 @@ public interface SkillEvidenceSignals {
     List<Entry> forUserAndSkills(UUID userId, Collection<UUID> skillIds);
 
     List<Entry> forUserAndSkill(UUID userId, UUID skillId);
+
+    /** {@code skillId → Σ contribution_weight} (capped 1.0) for readiness {@code evidenceCoverage} (ADR-026 §2). */
+    Map<UUID, Double> strengthBySkill(UUID userId, Collection<UUID> skillIds);
 }

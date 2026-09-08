@@ -9,7 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** One bean implementing every read port the evidence domain exposes to others. */
@@ -45,6 +47,17 @@ class EvidenceSignalsImpl implements SkillEvidenceSignals, ProjectSkillEvidenceS
     public List<Entry> forUserAndSkill(UUID userId, UUID skillId) {
         return skillEvidence.findForUserAndSkill(userId, skillId).stream()
                 .map(EvidenceSignalsImpl::toEntry).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, Double> strengthBySkill(UUID userId, Collection<UUID> skillIds) {
+        Map<UUID, Double> sum = new HashMap<>();
+        for (Entry e : forUserAndSkills(userId, skillIds)) {
+            sum.merge(e.skillId(), e.weight(), Double::sum);
+        }
+        sum.replaceAll((k, v) -> Math.min(1.0, v));
+        return sum;
     }
 
     @Override

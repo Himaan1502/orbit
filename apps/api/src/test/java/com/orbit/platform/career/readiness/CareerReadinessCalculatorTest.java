@@ -14,20 +14,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 /**
- * Direct tests of career-readiness aggregation (Blueprint §24, ADR-018) — no
- * Spring, no database. Blueprint §43: "readiness is reproducible".
+ * Direct tests of career-readiness aggregation (Blueprint §24, ADR-018, amended
+ * by ADR-026 §2) — no Spring, no database. Blueprint §43: "readiness is
+ * reproducible".
  */
 class CareerReadinessCalculatorTest {
 
-    private final ReadinessProperties weights = new ReadinessProperties(0.70, 0.30);
+    // ratified M5 blend
+    private final ReadinessProperties weights = new ReadinessProperties(0.45, 0.20, 0.20, 0.15, 0.50);
     private final SkillGraph emptyGraph = new SkillGraph(List.of());
 
     private final UUID k8s = UUID.randomUUID();
     private final UUID obs = UUID.randomUUID();
     private final UUID ds = UUID.randomUUID();
 
+    private Readiness compute(List<TargetSkill> skills, Map<UUID, Capability> caps,
+                              Map<UUID, Double> evidence, Map<UUID, Double> projects, SkillGraph g) {
+        return CareerReadinessCalculator.compute(skills, caps, evidence, projects, g, weights);
+    }
+
     private Readiness compute(List<TargetSkill> skills, Map<UUID, Capability> caps, SkillGraph g) {
-        return CareerReadinessCalculator.compute(skills, caps, g, weights);
+        return compute(skills, caps, Map.of(), Map.of(), g);
     }
 
     @Test
@@ -38,10 +45,50 @@ class CareerReadinessCalculatorTest {
         var caps = Map.of(
                 k8s, new Capability(0.4, 0.4),
                 obs, new Capability(0.8, 0.8));
-        // skillCapability = (0.9*0.4 + 0.6*0.8) / (0.9 + 0.6) = (0.36 + 0.48) / 1.5 = 0.56
+        // skillCapability = (0.9*0.4 + 0.6*0.8) / (0.9 + 0.6) = 0.56
         Readiness r = compute(skills, caps, emptyGraph);
         assertThat(component(r, "skillCapability")).isCloseTo(0.56, within(1e-3));
-        assertThat(r.confidence()).isEqualTo("self-reported");
+    }
+
+    @Test
+    void allFourComponentsAreComputedFromM5On() {
+        Readiness r = compute(
+                List.of(new TargetSkill(k8s, "Kubernetes", 1.0, 1.0)),
+                Map.of(k8s, new Capability(0.5, 0.5)),
+                Map.of(k8s, 0.6),   // evidence strength
+                Map.of(k8s, 0.4),   // project coverage
+                emptyGraph);
+
+        var comps = r.componentBreakdown().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        CareerReadinessCalculator.Component::component, c -> c));
+        assertThat(comps.get("evidenceCoverage").value()).isEqualTo(0.6);
+        assertThat(comps.get("evidenceCoverage").status()).isEqualTo("computed");
+        assertThat(comps.get("projectCoverage").value()).isEqualTo(0.4);
+        assertThat(comps.get("projectCoverage").status()).isEqualTo("computed");
+        double weightSum = r.componentBreakdown().stream()
+                .mapToDouble(CareerReadinessCalculator.Component::weight).sum();
+        assertThat(weightSum).isCloseTo(1.0, within(1e-6));
+    }
+
+    @Test
+    void overallBlendsAllFourComponents() {
+        var skills = List.of(new TargetSkill(k8s, "Kubernetes", 1.0, 1.0));
+        var caps = Map.of(k8s, new Capability(0.6, 0.2));
+        // overall = 0.6*0.45 + 0.2*0.20 + 0.8*0.20 + 0.4*0.15 = 0.27 + 0.04 + 0.16 + 0.06 = 0.53
+        assertThat(compute(skills, caps, Map.of(k8s, 0.8), Map.of(k8s, 0.4), emptyGraph).overall())
+                .isCloseTo(0.53, within(1e-3));
+    }
+
+    @Test
+    void readinessDropsForAnEvidenceFreeUserComparedToTheOldTwoWayBlend() {
+        var skills = List.of(new TargetSkill(k8s, "Kubernetes", 1.0, 1.0));
+        var caps = Map.of(k8s, new Capability(0.7, 0.5));
+        // M5, no evidence/projects: 0.7*0.45 + 0.5*0.20 + 0 + 0 = 0.315 + 0.10 = 0.415
+        double m5 = compute(skills, caps, emptyGraph).overall();
+        assertThat(m5).isCloseTo(0.415, within(1e-3));
+        // the old two-way blend would have been 0.7*0.70 + 0.5*0.30 = 0.64 — M5 is lower by design
+        assertThat(m5).isLessThan(0.64);
     }
 
     @Test
@@ -53,47 +100,37 @@ class CareerReadinessCalculatorTest {
 
         Readiness r = compute(skills, caps, emptyGraph);
         assertThat(r.assessedSkillCount()).isEqualTo(1);
-        assertThat(r.targetSkillCount()).isEqualTo(2);
-        // obs contributes 0 -> pulls skillCapability down and tops the gap list
         assertThat(r.criticalGaps().get(0).skill()).isEqualTo("Observability");
-        assertThat(r.criticalGaps().get(0).gap()).isCloseTo(0.8, within(1e-3)); // importance 0.8 * (1-0)
+        assertThat(r.criticalGaps().get(0).gap()).isCloseTo(0.8, within(1e-3));
     }
 
     @Test
-    void evidenceAndProjectComponentsAreExplicitlyNotTracked() {
-        Readiness r = compute(
-                List.of(new TargetSkill(k8s, "Kubernetes", 1.0, 1.0)),
-                Map.of(k8s, new Capability(0.5, 0.5)), emptyGraph);
-
-        var evidence = r.componentBreakdown().stream()
-                .filter(c -> c.component().equals("evidenceCoverage")).findFirst().orElseThrow();
-        assertThat(evidence.value()).isNull();
-        assertThat(evidence.weight()).isEqualTo(0.0);
-        assertThat(evidence.status()).isEqualTo("not-tracked-until-evidence-engine");
-        assertThat(r.explanation()).contains("not yet tracked");
-    }
-
-    @Test
-    void overallBlendsSkillCapabilityAndInterviewReadiness() {
-        var skills = List.of(new TargetSkill(k8s, "Kubernetes", 1.0, 1.0));
-        var caps = Map.of(k8s, new Capability(0.6, 0.2));
-        // overall = (0.6*0.70 + 0.2*0.30) / 1.0 = 0.42 + 0.06 = 0.48
-        assertThat(compute(skills, caps, emptyGraph).overall()).isCloseTo(0.48, within(1e-3));
+    void evidenceAndProjectGapsAreSurfaced() {
+        var skills = List.of(
+                new TargetSkill(k8s, "Kubernetes", 0.9, 0.5),
+                new TargetSkill(obs, "Observability", 0.6, 0.5));
+        var caps = Map.of(k8s, new Capability(0.8, 0.6), obs, new Capability(0.2, 0.2));
+        // k8s: capable (0.8 >= 0.5) but no evidence -> an evidence gap. obs: not capable -> not an evidence gap.
+        Readiness r = compute(skills, caps, Map.of(), Map.of(), emptyGraph);
+        assertThat(r.evidenceGaps()).extracting(CareerReadinessCalculator.EvidenceGap::skill)
+                .containsExactly("Kubernetes");
+        // neither skill has project coverage -> both are project gaps, ordered by importance
+        assertThat(r.projectGaps()).extracting(CareerReadinessCalculator.ProjectGap::skill)
+                .containsExactly("Kubernetes", "Observability");
     }
 
     @Test
     void highLeverageSkillsRankByWhatTheyUnblock() {
         SkillGraph g = new SkillGraph(List.of(
                 new SkillGraph.Edge(ds, k8s, 0.8),
-                new SkillGraph.Edge(ds, obs, 0.6)));   // ds is a prerequisite for both k8s and obs
+                new SkillGraph.Edge(ds, obs, 0.6)));
         var skills = List.of(
                 new TargetSkill(ds, "Distributed Systems", 0.7, 0.5),
                 new TargetSkill(k8s, "Kubernetes", 0.9, 0.5),
                 new TargetSkill(obs, "Observability", 0.8, 0.5));
-        var caps = Map.of(ds, new Capability(0.3, 0.3)); // k8s/obs unassessed -> gap 1.0
+        var caps = Map.of(ds, new Capability(0.3, 0.3));
 
         Readiness r = compute(skills, caps, g);
-        assertThat(r.highLeverageSkills()).isNotEmpty();
         assertThat(r.highLeverageSkills().get(0).skill()).isEqualTo("Distributed Systems");
         assertThat(r.highLeverageSkills().get(0).unlocks()).isEqualTo(2);
     }
@@ -102,7 +139,8 @@ class CareerReadinessCalculatorTest {
     void isReproducible() {
         var skills = List.of(new TargetSkill(k8s, "Kubernetes", 0.9, 0.5));
         var caps = Map.of(k8s, new Capability(0.55, 0.4));
-        assertThat(compute(skills, caps, emptyGraph)).isEqualTo(compute(skills, caps, emptyGraph));
+        assertThat(compute(skills, caps, Map.of(k8s, 0.3), Map.of(), emptyGraph))
+                .isEqualTo(compute(skills, caps, Map.of(k8s, 0.3), Map.of(), emptyGraph));
     }
 
     @Test

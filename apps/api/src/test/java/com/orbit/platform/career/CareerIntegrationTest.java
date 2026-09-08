@@ -118,8 +118,13 @@ class CareerIntegrationTest extends AbstractApiIntegrationTest {
                 .andExpect(jsonPath("$.data.assessedSkillCount").value(1))
                 .andExpect(jsonPath("$.data.targetSkillCount").value(2))
                 .andExpect(jsonPath("$.data.overall").value(org.hamcrest.Matchers.greaterThan(0.0)))
+                // M5: evidence/project coverage are real components, 0 with no evidence yet (ADR-026 §2)
                 .andExpect(jsonPath("$.data.componentBreakdown[?(@.component == 'evidenceCoverage')].status")
-                        .value(org.hamcrest.Matchers.hasItem("not-tracked-until-evidence-engine")))
+                        .value(org.hamcrest.Matchers.hasItem("computed")))
+                .andExpect(jsonPath("$.data.componentBreakdown[?(@.component == 'evidenceCoverage')].value")
+                        .value(org.hamcrest.Matchers.hasItem(0.0)))
+                .andExpect(jsonPath("$.data.componentBreakdown[?(@.component == 'projectCoverage')].value")
+                        .value(org.hamcrest.Matchers.hasItem(0.0)))
                 .andExpect(jsonPath("$.data.trend").value(org.hamcrest.Matchers.nullValue()));
 
         mockMvc.perform(get("/api/v1/career/gaps").with(u))

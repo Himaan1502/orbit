@@ -10,10 +10,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Pure career-readiness aggregation (Blueprint §24, ADR-018). No I/O — the
- * caller loads the target's skills, the user's capabilities and the skill graph
- * and passes them in. Given the same inputs it always returns the same numbers
- * (Blueprint §43 — "readiness is reproducible").
+ * Pure career-readiness aggregation (Blueprint §24, ADR-018, amended by
+ * ADR-026 §2). No I/O — the caller loads the target's skills, the user's
+ * capabilities, evidence strength and project coverage per skill, and the skill
+ * graph. Given the same inputs it always returns the same numbers (Blueprint
+ * §43 — "readiness is reproducible").
  */
 public final class CareerReadinessCalculator {
 
@@ -38,18 +39,30 @@ public final class CareerReadinessCalculator {
     public record HighLeverageSkill(UUID skillId, String skill, int unlocks, double leverage) {
     }
 
+    /** A skill the user can do (capability ≥ bar) but has not demonstrated (evidence ≈ 0). */
+    public record EvidenceGap(UUID skillId, String skill, double importance, double capability) {
+    }
+
+    /** A target skill with ~no demonstrated project work. */
+    public record ProjectGap(UUID skillId, String skill, double importance, double capability) {
+    }
+
     public record Readiness(
             double overall,
             String confidence,
             List<Component> componentBreakdown,
             List<CriticalGap> criticalGaps,
             List<HighLeverageSkill> highLeverageSkills,
+            List<EvidenceGap> evidenceGaps,
+            List<ProjectGap> projectGaps,
             int assessedSkillCount,
             int targetSkillCount,
             String explanation) {
     }
 
     public static Readiness compute(List<TargetSkill> targetSkills, Map<UUID, Capability> capabilities,
+                                    Map<UUID, Double> evidenceStrengthBySkill,
+                                    Map<UUID, Double> projectCoverageBySkill,
                                     SkillGraph graph, ReadinessProperties weights) {
         int assessed = (int) targetSkills.stream().filter(t -> capabilities.containsKey(t.skillId())).count();
 
@@ -57,27 +70,47 @@ public final class CareerReadinessCalculator {
                 TargetSkill::importance, t -> cap(capabilities, t.skillId()).overall());
         double interviewReadiness = weightedMean(targetSkills,
                 TargetSkill::interviewWeight, t -> cap(capabilities, t.skillId()).interview());
+        double evidenceCoverage = weightedMean(targetSkills,
+                TargetSkill::importance, t -> clamp(evidenceStrengthBySkill.getOrDefault(t.skillId(), 0.0)));
+        double projectCoverage = weightedMean(targetSkills,
+                TargetSkill::importance, t -> clamp(projectCoverageBySkill.getOrDefault(t.skillId(), 0.0)));
 
         double wCap = weights.skillCapabilityWeight();
         double wInt = weights.interviewReadinessWeight();
-        double norm = wCap + wInt;
-        double overall = norm == 0 ? 0 : (skillCapability * wCap + interviewReadiness * wInt) / norm;
+        double wEv = weights.evidenceCoverageWeight();
+        double wPr = weights.projectCoverageWeight();
+        double norm = wCap + wInt + wEv + wPr;
+        double overall = norm == 0 ? 0
+                : (skillCapability * wCap + interviewReadiness * wInt
+                   + evidenceCoverage * wEv + projectCoverage * wPr) / norm;
 
         List<Component> breakdown = List.of(
                 new Component("skillCapability", round(skillCapability), round(wCap / norm), "computed"),
                 new Component("interviewReadiness", round(interviewReadiness), round(wInt / norm), "computed"),
-                new Component("evidenceCoverage", null, 0.0, "not-tracked-until-evidence-engine"),
-                new Component("projectCoverage", null, 0.0, "not-tracked-until-project-engine"));
+                new Component("evidenceCoverage", round(evidenceCoverage), round(wEv / norm), "computed"),
+                new Component("projectCoverage", round(projectCoverage), round(wPr / norm), "computed"));
+
+        String confidence = confidence(evidenceCoverage, projectCoverage);
 
         return new Readiness(
                 round(overall),
-                "self-reported",
+                confidence,
                 breakdown,
                 criticalGaps(targetSkills, capabilities),
                 highLeverageSkills(targetSkills, capabilities, graph),
+                evidenceGaps(targetSkills, capabilities, evidenceStrengthBySkill,
+                        weights.evidenceGapCapabilityBar()),
+                projectGaps(targetSkills, capabilities, projectCoverageBySkill),
                 assessed,
                 targetSkills.size(),
                 explanation(assessed, targetSkills.size()));
+    }
+
+    private static String confidence(double evidenceCoverage, double projectCoverage) {
+        if (evidenceCoverage >= 0.5 && projectCoverage >= 0.3) {
+            return "partially-verified";
+        }
+        return "self-reported";
     }
 
     private static Capability cap(Map<UUID, Capability> capabilities, UUID skillId) {
@@ -107,6 +140,31 @@ public final class CareerReadinessCalculator {
                 })
                 .filter(g -> g.gap() > 0.001)
                 .sorted(Comparator.comparingDouble(CriticalGap::gap).reversed())
+                .limit(TOP_N)
+                .toList();
+    }
+
+    private static List<EvidenceGap> evidenceGaps(List<TargetSkill> targetSkills,
+                                                  Map<UUID, Capability> capabilities,
+                                                  Map<UUID, Double> evidenceStrengthBySkill, double bar) {
+        return targetSkills.stream()
+                .filter(t -> cap(capabilities, t.skillId()).overall() >= bar)
+                .filter(t -> evidenceStrengthBySkill.getOrDefault(t.skillId(), 0.0) < 0.001)
+                .map(t -> new EvidenceGap(t.skillId(), t.name(), round(t.importance()),
+                        round(cap(capabilities, t.skillId()).overall())))
+                .sorted(Comparator.comparingDouble(EvidenceGap::importance).reversed())
+                .limit(TOP_N)
+                .toList();
+    }
+
+    private static List<ProjectGap> projectGaps(List<TargetSkill> targetSkills,
+                                                Map<UUID, Capability> capabilities,
+                                                Map<UUID, Double> projectCoverageBySkill) {
+        return targetSkills.stream()
+                .filter(t -> projectCoverageBySkill.getOrDefault(t.skillId(), 0.0) < 0.001)
+                .map(t -> new ProjectGap(t.skillId(), t.name(), round(t.importance()),
+                        round(cap(capabilities, t.skillId()).overall())))
+                .sorted(Comparator.comparingDouble(ProjectGap::importance).reversed())
                 .limit(TOP_N)
                 .toList();
     }
@@ -143,8 +201,12 @@ public final class CareerReadinessCalculator {
         if (target == 0) {
             return "This target has no skills yet — add the capabilities it requires.";
         }
-        return "Based on " + assessed + " of " + target + " target skills self-assessed, weighted by "
-                + "this target. Evidence and project coverage are not yet tracked.";
+        return "Based on " + assessed + " of " + target + " target skills self-assessed, plus logged "
+                + "evidence and demonstrated project work, weighted by this target.";
+    }
+
+    private static double clamp(double v) {
+        return Math.max(0.0, Math.min(1.0, v));
     }
 
     private static double round(double v) {

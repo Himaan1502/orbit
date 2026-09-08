@@ -64,6 +64,7 @@ public class SkillController {
         AssessmentResult result = assessmentService.assess(id, new AssessmentInput(
                 request.knowledge(), request.practical(), request.evidence(),
                 request.interview(), request.production()));
-        return ApiResponse.of(AssessmentResponse.from(result.assessment(), result.score()));
+        return ApiResponse.of(AssessmentResponse.from(
+                result.assessment(), result.score(), result.confidence()));
     }
 }

@@ -18,8 +18,9 @@ import java.util.stream.Collectors;
 
 /**
  * Read access to the global skill catalog (ADR-020) joined with the current
- * user's latest assessment per skill. The catalog itself is not user-scoped and
- * not editable in Milestone 3.
+ * user's latest assessment per skill and — since M5 — the {@code confidence}
+ * that assessment carries given the evidence linked to the skill (ADR-026 §1).
+ * The catalog itself is not user-scoped and not editable.
  */
 @Service
 public class SkillService {
@@ -27,15 +28,18 @@ public class SkillService {
     private final SkillRepository skills;
     private final SkillAssessmentRepository assessments;
     private final SkillGraphService graphService;
+    private final SkillEvidenceConfidence evidenceConfidence;
 
     public SkillService(SkillRepository skills, SkillAssessmentRepository assessments,
-                        SkillGraphService graphService) {
+                        SkillGraphService graphService, SkillEvidenceConfidence evidenceConfidence) {
         this.skills = skills;
         this.assessments = assessments;
         this.graphService = graphService;
+        this.evidenceConfidence = evidenceConfidence;
     }
 
-    public record SkillWithCapability(Skill skill, Optional<SkillAssessment> latestAssessment) {
+    public record SkillWithCapability(Skill skill, Optional<SkillAssessment> latestAssessment,
+                                      String confidence) {
         public Double capability() {
             return latestAssessment.map(SkillAssessment::overall).orElse(null);
         }
@@ -50,8 +54,14 @@ public class SkillService {
     @Transactional(readOnly = true)
     public List<SkillWithCapability> listForUser(UUID userId) {
         Map<UUID, SkillAssessment> latest = latestBySkill(userId);
+        Map<UUID, String> confidenceBySkill = evidenceConfidence.byUser(userId);
         return skills.findByStatusOrderByCategoryAscCanonicalNameAsc("active").stream()
-                .map(s -> new SkillWithCapability(s, Optional.ofNullable(latest.get(s.getId()))))
+                .map(s -> {
+                    SkillAssessment a = latest.get(s.getId());
+                    String confidence = a == null ? null
+                            : confidenceBySkill.getOrDefault(s.getId(), "self-reported");
+                    return new SkillWithCapability(s, Optional.ofNullable(a), confidence);
+                })
                 .toList();
     }
 
@@ -59,8 +69,10 @@ public class SkillService {
     public SkillWithCapability getForUser(UUID skillId, UUID userId) {
         Skill skill = skills.findById(skillId)
                 .orElseThrow(() -> ApiException.notFound("Skill not found."));
-        return new SkillWithCapability(skill,
-                assessments.findFirstByUserIdAndSkillIdOrderByAssessedAtDesc(userId, skillId));
+        SkillAssessment a = assessments.findFirstByUserIdAndSkillIdOrderByAssessedAtDesc(userId, skillId)
+                .orElse(null);
+        String confidence = a == null ? null : evidenceConfidence.forSkill(userId, skillId);
+        return new SkillWithCapability(skill, Optional.ofNullable(a), confidence);
     }
 
     @Transactional(readOnly = true)

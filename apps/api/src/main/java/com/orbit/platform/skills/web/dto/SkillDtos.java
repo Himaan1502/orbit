@@ -30,11 +30,12 @@ public final class SkillDtos {
     }
 
     public record SkillSummary(
-            UUID id, String canonicalName, String category, String description, Double capability) {
+            UUID id, String canonicalName, String category, String description,
+            Double capability, String confidence) {
 
         public static SkillSummary from(SkillWithCapability s) {
             return new SkillSummary(s.skill().getId(), s.skill().getCanonicalName(),
-                    s.skill().getCategory(), s.skill().getDescription(), s.capability());
+                    s.skill().getCategory(), s.skill().getDescription(), s.capability(), s.confidence());
         }
     }
 
@@ -48,7 +49,7 @@ public final class SkillDtos {
             return new SkillDetail(
                     s.skill().getId(), s.skill().getCanonicalName(), s.skill().getCategory(),
                     s.skill().getDescription(), s.capability(),
-                    a == null ? null : "self-reported",
+                    s.confidence(),
                     a == null ? null : DimensionBreakdown.from(a),
                     a == null ? null : a.getAssessedAt());
         }
@@ -85,13 +86,13 @@ public final class SkillDtos {
             DimensionBreakdown dimensions, List<ScoreComponent> components,
             String assessmentSource, Instant assessedAt) {
 
-        public static AssessmentResponse from(SkillAssessment a, SkillScore score) {
+        public static AssessmentResponse from(SkillAssessment a, SkillScore score, String confidence) {
             List<ScoreComponent> comps = score.components().entrySet().stream()
                     .map(e -> new ScoreComponent(e.getKey(), e.getValue().value(),
                             e.getValue().weight(), e.getValue().contribution()))
                     .toList();
             return new AssessmentResponse(
-                    a.getId(), a.getSkillId(), score.overall(), score.confidence().value(),
+                    a.getId(), a.getSkillId(), score.overall(), confidence,
                     DimensionBreakdown.from(a), comps, a.getAssessmentSource(), a.getAssessedAt());
         }
     }

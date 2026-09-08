@@ -31,14 +31,17 @@ public class SkillAssessmentService {
     private final SkillAssessmentRepository assessments;
     private final SkillRepository skills;
     private final SkillScoringEngine engine;
+    private final SkillEvidenceConfidence evidenceConfidence;
     private final CurrentUserService currentUser;
     private final Clock clock;
 
     public SkillAssessmentService(SkillAssessmentRepository assessments, SkillRepository skills,
-                                  SkillScoringEngine engine, CurrentUserService currentUser, Clock clock) {
+                                  SkillScoringEngine engine, SkillEvidenceConfidence evidenceConfidence,
+                                  CurrentUserService currentUser, Clock clock) {
         this.assessments = assessments;
         this.skills = skills;
         this.engine = engine;
+        this.evidenceConfidence = evidenceConfidence;
         this.currentUser = currentUser;
         this.clock = clock;
     }
@@ -47,7 +50,8 @@ public class SkillAssessmentService {
             double knowledge, double practical, double evidence, double interview, double production) {
     }
 
-    public record AssessmentResult(SkillAssessment assessment, SkillScore score) {
+    /** {@code confidence} reflects the evidence linked to the skill, not just the source (ADR-026 §1). */
+    public record AssessmentResult(SkillAssessment assessment, SkillScore score, String confidence) {
     }
 
     @Transactional
@@ -66,9 +70,11 @@ public class SkillAssessmentService {
         SkillAssessment saved = assessments.save(SkillAssessment.create(
                 userId, skillId, dims, score.overall(), "self", clock.instant()));
 
-        log.info("event=skills.assessment.recorded user_id={} skill_id={} overall={} source=self",
-                userId, skillId, score.overall());
-        return new AssessmentResult(saved, score);
+        String confidence = evidenceConfidence.forSkill(userId, skillId);
+
+        log.info("event=skills.assessment.recorded user_id={} skill_id={} overall={} source=self confidence={}",
+                userId, skillId, score.overall(), confidence);
+        return new AssessmentResult(saved, score, confidence);
     }
 
     @Transactional(readOnly = true)

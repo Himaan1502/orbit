@@ -4,7 +4,9 @@ import com.orbit.platform.career.model.CareerTarget;
 import com.orbit.platform.career.model.CareerTargetSkill;
 import com.orbit.platform.career.readiness.CareerReadinessCalculator.Component;
 import com.orbit.platform.career.readiness.CareerReadinessCalculator.CriticalGap;
+import com.orbit.platform.career.readiness.CareerReadinessCalculator.EvidenceGap;
 import com.orbit.platform.career.readiness.CareerReadinessCalculator.HighLeverageSkill;
+import com.orbit.platform.career.readiness.CareerReadinessCalculator.ProjectGap;
 import com.orbit.platform.career.service.CareerReadinessService.NamedReadiness;
 import com.orbit.platform.career.service.CareerTargetService.TargetWithSkills;
 import jakarta.validation.Valid;
@@ -83,7 +85,8 @@ public final class CareerDtos {
     public record ReadinessResponse(
             UUID careerTargetId, String targetName, double overall, String confidence,
             List<Component> componentBreakdown, List<CriticalGap> criticalGaps,
-            List<HighLeverageSkill> highLeverageSkills, int assessedSkillCount,
+            List<HighLeverageSkill> highLeverageSkills, List<EvidenceGap> evidenceGaps,
+            List<ProjectGap> projectGaps, int assessedSkillCount,
             int targetSkillCount, String explanation, Object trend) {
 
         public static ReadinessResponse from(NamedReadiness nr) {
@@ -91,16 +94,19 @@ public final class CareerDtos {
             return new ReadinessResponse(
                     nr.careerTargetId(), nr.targetName(), r.overall(), r.confidence(),
                     r.componentBreakdown(), r.criticalGaps(), r.highLeverageSkills(),
+                    r.evidenceGaps(), r.projectGaps(),
                     r.assessedSkillCount(), r.targetSkillCount(), r.explanation(), null);
         }
     }
 
     public record GapsResponse(
-            UUID careerTargetId, List<CriticalGap> criticalGaps, List<HighLeverageSkill> highLeverageSkills) {
+            UUID careerTargetId, List<CriticalGap> criticalGaps, List<HighLeverageSkill> highLeverageSkills,
+            List<EvidenceGap> evidenceGaps, List<ProjectGap> projectGaps) {
 
         public static GapsResponse from(NamedReadiness nr) {
             var r = nr.readiness();
-            return new GapsResponse(nr.careerTargetId(), r.criticalGaps(), r.highLeverageSkills());
+            return new GapsResponse(nr.careerTargetId(), r.criticalGaps(), r.highLeverageSkills(),
+                    r.evidenceGaps(), r.projectGaps());
         }
     }
 }
