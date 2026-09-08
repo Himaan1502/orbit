@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Briefcase, Plus, Target, TrendingUp } from 'lucide-react';
+import { Briefcase, FileCheck, FolderKanban, Plus, Target, TrendingUp } from 'lucide-react';
 import { useCareerTargets, useGaps, useReadiness } from '@/features/career/api';
 import { CareerTargetForm } from '@/features/career/CareerTargetForm';
 import { Button } from '@/components/ui/Button';
@@ -12,7 +12,13 @@ import { Dialog } from '@/components/ui/Dialog';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States';
-import type { CareerReadiness, CriticalGap, HighLeverageSkill } from '@/lib/api-types';
+import type {
+  CareerReadiness,
+  CriticalGap,
+  EvidenceGap,
+  HighLeverageSkill,
+  ProjectGap,
+} from '@/lib/api-types';
 
 export default function CareerPage() {
   const targets = useCareerTargets();
@@ -62,6 +68,8 @@ export default function CareerPage() {
             <div className="grid gap-4 lg:grid-cols-2">
               <GapList gaps={gaps.data.criticalGaps} />
               <LeverageList skills={gaps.data.highLeverageSkills} />
+              <EvidenceGapList gaps={gaps.data.evidenceGaps} />
+              <ProjectGapList gaps={gaps.data.projectGaps} />
             </div>
           )}
 
@@ -132,6 +140,13 @@ function ReadinessPanel({ readiness }: { readiness: CareerReadiness }) {
           </div>
           <p className="text-xs text-[var(--text-secondary)]">{readiness.explanation}</p>
 
+          <p className="mt-3 rounded-card border border-[var(--border)] bg-[var(--bg-base)] p-2.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">
+            Readiness now blends four signals — skill capability (0.45), interview readiness (0.20),
+            evidence coverage (0.20) and demonstrated project work (0.15). Capability alone no
+            longer carries it: a target with strong self-assessments but no logged evidence or
+            completed projects will read lower here than it did before, by design.
+          </p>
+
           <ul className="mt-4 space-y-2">
             {readiness.componentBreakdown.map((c) => (
               <li key={c.component} className="flex items-center gap-3 text-xs">
@@ -189,6 +204,78 @@ function GapList({ gaps }: { gaps: CriticalGap[] }) {
             </li>
           ))}
         </ul>
+      )}
+    </Card>
+  );
+}
+
+function EvidenceGapList({ gaps }: { gaps: EvidenceGap[] }) {
+  return (
+    <Card className="p-4">
+      <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]">
+        <FileCheck size={14} /> Evidence gaps
+      </h3>
+      {gaps.length === 0 ? (
+        <p className="text-xs text-[var(--text-secondary)]">
+          Every skill you can do has evidence behind it.
+        </p>
+      ) : (
+        <>
+          <p className="mb-2 text-[11px] text-[var(--text-secondary)]">
+            You can do these — you just haven&apos;t logged proof.
+          </p>
+          <ul className="space-y-1.5">
+            {gaps.map((g) => (
+              <li key={g.skillId}>
+                <Link
+                  href={`/skills/${g.skillId}`}
+                  className="flex items-center justify-between gap-2 text-xs text-[var(--text-primary)] hover:text-[var(--accent-cyan)]"
+                >
+                  <span>{g.skill}</span>
+                  <span className="font-mono text-[10px] text-[var(--text-secondary)]">
+                    cap {Math.round(g.capability * 100)} · imp {g.importance.toFixed(1)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function ProjectGapList({ gaps }: { gaps: ProjectGap[] }) {
+  return (
+    <Card className="p-4">
+      <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]">
+        <FolderKanban size={14} /> Project gaps
+      </h3>
+      {gaps.length === 0 ? (
+        <p className="text-xs text-[var(--text-secondary)]">
+          Demonstrated project work covers your target skills.
+        </p>
+      ) : (
+        <>
+          <p className="mb-2 text-[11px] text-[var(--text-secondary)]">
+            No completed project demonstrates these yet.
+          </p>
+          <ul className="space-y-1.5">
+            {gaps.map((g) => (
+              <li key={g.skillId}>
+                <Link
+                  href={`/skills/${g.skillId}`}
+                  className="flex items-center justify-between gap-2 text-xs text-[var(--text-primary)] hover:text-[var(--accent-cyan)]"
+                >
+                  <span>{g.skill}</span>
+                  <span className="font-mono text-[10px] text-[var(--text-secondary)]">
+                    cap {Math.round(g.capability * 100)} · imp {g.importance.toFixed(1)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </Card>
   );

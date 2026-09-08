@@ -2,9 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUpRight, GitBranch } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, FileCheck, GitBranch, Plus } from 'lucide-react';
 import { useSkill, useSkillDependencies } from '@/features/skills/api';
+import { useSkillEvidence } from '@/features/evidence/api';
 import { AssessSkillForm } from '@/features/skills/AssessSkillForm';
+import { EvidenceForm } from '@/features/evidence/EvidenceForm';
+import { EvidenceRow } from '@/features/evidence/EvidenceRow';
 import { Button } from '@/components/ui/Button';
 import { Card, CardLabel } from '@/components/ui/Card';
 import { Dialog } from '@/components/ui/Dialog';
@@ -27,7 +30,9 @@ export default function SkillDetailPage({ params }: { params: { id: string } }) 
   const { id } = params;
   const skill = useSkill(id);
   const deps = useSkillDependencies(id);
+  const evidence = useSkillEvidence(id);
   const [assessing, setAssessing] = useState(false);
+  const [loggingEvidence, setLoggingEvidence] = useState(false);
 
   if (skill.isLoading) return <LoadingState />;
   if (skill.isError || !skill.data) return <ErrorState message="This skill could not be found." />;
@@ -57,7 +62,11 @@ export default function SkillDetailPage({ params }: { params: { id: string } }) 
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex items-center gap-2">
               <CardLabel>{s.category}</CardLabel>
-              {s.confidence && <Badge tone="neutral">{s.confidence}</Badge>}
+              {s.confidence && (
+                <Badge tone={s.confidence === 'self-reported' ? 'neutral' : 'cyan'}>
+                  {s.confidence}
+                </Badge>
+              )}
             </div>
             <h1 className="text-xl font-semibold text-[var(--text-primary)]">{s.canonicalName}</h1>
             {s.description && (
@@ -105,12 +114,45 @@ export default function SkillDetailPage({ params }: { params: { id: string } }) 
         )}
       </section>
 
+      <section className="mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+            <FileCheck size={15} /> Evidence
+          </h2>
+          <Button size="sm" variant="secondary" onClick={() => setLoggingEvidence(true)}>
+            <Plus size={13} /> Log evidence
+          </Button>
+        </div>
+        <p className="mb-3 text-xs text-[var(--text-secondary)]">
+          Logged evidence raises this skill&apos;s assessment <em>confidence</em> — it never changes
+          the capability score.
+        </p>
+        {evidence.isLoading && <LoadingState />}
+        {(evidence.data ?? []).length === 0 && !evidence.isLoading && (
+          <p className="text-xs text-[var(--text-secondary)]">
+            No evidence logged for this skill yet.
+          </p>
+        )}
+        <ul className="space-y-2">
+          {(evidence.data ?? []).map((e) => (
+            <EvidenceRow key={e.id} evidence={e} />
+          ))}
+        </ul>
+      </section>
+
       <Dialog
         open={assessing}
         onClose={() => setAssessing(false)}
         title={`Assess — ${s.canonicalName}`}
       >
         <AssessSkillForm skillId={id} current={s.dimensions} onDone={() => setAssessing(false)} />
+      </Dialog>
+      <Dialog
+        open={loggingEvidence}
+        onClose={() => setLoggingEvidence(false)}
+        title={`Log evidence — ${s.canonicalName}`}
+      >
+        <EvidenceForm presetSkillId={id} onDone={() => setLoggingEvidence(false)} />
       </Dialog>
     </div>
   );

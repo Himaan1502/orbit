@@ -50,6 +50,7 @@ export interface Task {
   id: string;
   objectiveId: string | null;
   milestoneId: string | null;
+  projectId: string | null;
   title: string;
   description: string | null;
   estimatedMinutes: number | null;
@@ -209,7 +210,7 @@ export interface CareerTarget {
 
 export interface ReadinessComponent {
   component: string;
-  /** null when the component is not yet tracked (evidence / project coverage in M3). */
+  /** null only for a target with no skills; every component is "computed" from M5. */
   value: number | null;
   weight: number;
   status: string;
@@ -230,6 +231,22 @@ export interface HighLeverageSkill {
   leverage: number;
 }
 
+/** A target skill the user can do (capability ≥ bar) but has logged no evidence for (ADR-026 §2). */
+export interface EvidenceGap {
+  skillId: string;
+  skill: string;
+  importance: number;
+  capability: number;
+}
+
+/** A target skill with ~no demonstrated project work (ADR-026 §2). */
+export interface ProjectGap {
+  skillId: string;
+  skill: string;
+  importance: number;
+  capability: number;
+}
+
 export interface CareerReadiness {
   careerTargetId: string;
   targetName: string;
@@ -238,6 +255,8 @@ export interface CareerReadiness {
   componentBreakdown: ReadinessComponent[];
   criticalGaps: CriticalGap[];
   highLeverageSkills: HighLeverageSkill[];
+  evidenceGaps: EvidenceGap[];
+  projectGaps: ProjectGap[];
   assessedSkillCount: number;
   targetSkillCount: number;
   explanation: string;
@@ -248,6 +267,8 @@ export interface CareerGaps {
   careerTargetId: string;
   criticalGaps: CriticalGap[];
   highLeverageSkills: HighLeverageSkill[];
+  evidenceGaps: EvidenceGap[];
+  projectGaps: ProjectGap[];
 }
 
 // ===== Milestone 4 — Roadmaps (Blueprint §11/§20/§32, ADR-021/022/023) =====
@@ -343,4 +364,81 @@ export interface RoadmapIntersection {
   roadmaps: RoadmapRef[];
   sharedSkillCount: number;
   sharedSkills: SharedSkill[];
+}
+
+// ===== Milestone 5 — Projects & Evidence (Blueprint §13/§14/§20, ADR-024/025/026) =====
+
+export type ProjectStatus = 'planned' | 'active' | 'completed' | 'archived';
+
+export interface ProjectSkillLink {
+  skillId: string;
+  name: string;
+  /** What the user expects this project to contribute to the skill, 0..1 (user-set). */
+  expectedContribution: number;
+  /** Derived (ADR-026 §3): 0 unless the project is completed with linked evidence. */
+  demonstratedContribution: number;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  objectiveId: string | null;
+  objectiveTitle: string | null;
+  repositoryUrl: string | null;
+  demoUrl: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  skillCount: number;
+  evidenceCount: number;
+  /** null until the project has tasks. */
+  taskProgress: number | null;
+  /** null until the project has skills. */
+  skillsDemonstrated: number | null;
+  progress: number;
+  /** Empty on the list projection; populated on the detail response. */
+  skills: ProjectSkillLink[];
+}
+
+export type EvidenceType =
+  | 'project'
+  | 'repository'
+  | 'deployment'
+  | 'benchmark'
+  | 'document'
+  | 'certification'
+  | 'assessment'
+  | 'talk'
+  | 'other';
+
+export type VerificationStatus = 'self_attested' | 'pending' | 'verified' | 'disputed';
+
+export interface EvidenceSkillLink {
+  skillId: string;
+  name: string | null;
+  contributionWeight: number;
+}
+
+export interface EvidenceProjectLink {
+  projectId: string;
+  name: string | null;
+}
+
+export interface Evidence {
+  id: string;
+  type: EvidenceType;
+  title: string;
+  description: string | null;
+  sourceUrl: string | null;
+  externalIdentifier: string | null;
+  verificationStatus: VerificationStatus;
+  metadata: Record<string, unknown>;
+  occurredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  skills: EvidenceSkillLink[];
+  projects: EvidenceProjectLink[];
 }

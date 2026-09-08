@@ -1,9 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, Sparkles, Target } from 'lucide-react';
+import { ArrowRight, FolderKanban, Sparkles, Target } from 'lucide-react';
 import { useDashboard } from '@/features/dashboard/api';
 import { useGeneratePlan } from '@/features/execution/api';
+import { useProjects } from '@/features/projects/api';
+import { useEvidenceList } from '@/features/evidence/api';
+import { EvidenceRow } from '@/features/evidence/EvidenceRow';
 import { Button } from '@/components/ui/Button';
 import { Card, CardLabel } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/Badge';
@@ -15,6 +18,11 @@ import { formatMinutes, todayIso } from '@/lib/format';
 export default function CommandCenterPage() {
   const { data, isLoading, isError } = useDashboard();
   const generate = useGeneratePlan(todayIso());
+  const projects = useProjects();
+  const recentEvidence = useEvidenceList({});
+
+  const activeProjects = (projects.data ?? []).filter((p) => p.status === 'active');
+  const latestEvidence = (recentEvidence.data ?? []).slice(0, 4);
 
   if (isLoading) return <LoadingState />;
   if (isError || !data) return <ErrorState message="Could not load your Command Center." />;
@@ -176,6 +184,64 @@ export default function CommandCenterPage() {
               ))}
             </ul>
           </section>
+
+          {/* Active projects */}
+          {activeProjects.length > 0 && (
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Active projects
+                </h2>
+                <Link
+                  href="/projects"
+                  className="text-xs text-[var(--text-secondary)] hover:text-[var(--accent-cyan)]"
+                >
+                  All projects
+                </Link>
+              </div>
+              <ul className="space-y-2">
+                {activeProjects.map((p) => (
+                  <li key={p.id}>
+                    <Link
+                      href={`/projects/${p.id}`}
+                      className="flex items-center gap-3 rounded-card border border-[var(--border)] bg-[var(--bg-surface)] p-3 transition-colors hover:border-[var(--card-hover-border)]"
+                    >
+                      <ProgressRing value={p.progress} size={40} strokeWidth={4} />
+                      <span className="min-w-0 flex-1 truncate text-sm text-[var(--text-primary)]">
+                        {p.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-[11px] text-[var(--text-secondary)]">
+                        {p.evidenceCount} evidence
+                      </span>
+                      <FolderKanban size={14} className="shrink-0 text-[var(--text-secondary)]" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* Recent evidence */}
+          {latestEvidence.length > 0 && (
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Recent evidence
+                </h2>
+                <Link
+                  href="/evidence"
+                  className="text-xs text-[var(--text-secondary)] hover:text-[var(--accent-cyan)]"
+                >
+                  All evidence
+                </Link>
+              </div>
+              <ul className="space-y-2">
+                {latestEvidence.map((e) => (
+                  <EvidenceRow key={e.id} evidence={e} />
+                ))}
+              </ul>
+            </section>
+          )}
         </>
       )}
     </div>

@@ -21,10 +21,12 @@ type FormValues = z.infer<typeof schema>;
 export function TaskForm({
   objectiveId,
   milestones,
+  projectId,
   onDone,
 }: {
   objectiveId: string;
   milestones: Milestone[];
+  projectId?: string;
   onDone: () => void;
 }) {
   const create = useCreateTask();
@@ -37,6 +39,7 @@ export function TaskForm({
   const onSubmit = handleSubmit(async (values) => {
     await create.mutateAsync({
       objectiveId,
+      projectId: projectId ?? null,
       title: values.title,
       description: values.description || undefined,
       estimatedMinutes: values.estimatedMinutes ? Number(values.estimatedMinutes) : null,

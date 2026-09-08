@@ -17,6 +17,8 @@ export function useTasks() {
 export interface CreateTaskInput {
   objectiveId: string;
   milestoneId?: string | null;
+  projectId?: string | null;
+  skillId?: string | null;
   title: string;
   description?: string;
   estimatedMinutes?: number | null;
@@ -27,7 +29,10 @@ export function useCreateTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateTaskInput) => apiPost<Task>('/tasks', input),
-    onSuccess: (_t, input) => invalidateExecution(qc, input.objectiveId),
+    onSuccess: (_t, input) => {
+      invalidateExecution(qc, input.objectiveId);
+      if (input.projectId) qc.invalidateQueries({ queryKey: ['projects'] });
+    },
   });
 }
 
