@@ -1,7 +1,7 @@
 # ADR-014: Priority Engine v1 — Factors, Formula, Weights
 
 ## Status
-Accepted — **weight values pending product-owner sign-off** (see §"Decision needed")
+Accepted — weight values ratified by the product owner (M2 sign-off, reaffirmed 2026-09-08)
 
 ## Date
 2026-09-07

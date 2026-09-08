@@ -1,7 +1,7 @@
 # ADR-018: Career Readiness Aggregation (with M3 components only)
 
 ## Status
-Accepted — **blend weights (0.70 / 0.30) pending product-owner sign-off** (see §"Decision needed")
+Accepted — blend weights (0.70 / 0.30) ratified by the product owner 2026-09-08
 
 ## Date
 2026-09-07

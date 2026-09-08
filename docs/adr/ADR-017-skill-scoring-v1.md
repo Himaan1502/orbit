@@ -1,7 +1,7 @@
 # ADR-017: Skill Scoring v1 — Dimensions, Formula, Weights
 
 ## Status
-Accepted — **weight values pending product-owner sign-off** (see §"Decision needed")
+Accepted — weight values ratified by the product owner 2026-09-08
 
 ## Date
 2026-09-07

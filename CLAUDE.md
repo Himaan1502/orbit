@@ -94,7 +94,7 @@ trigger. See [deferred-items.md](docs/engineering/deferred-items.md).
 | Milestones (Blueprint §9) | ✅ | `orbit.milestones`, `GET/POST /objectives/{id}/milestones` + `GET/PATCH/DELETE /objectives/{id}/milestones/{mid}`. Auto-status from child tasks. |
 | Progress rollup | ✅ | `ProgressCalculator` (pure, [ADR-016](docs/adr/ADR-016-objective-status-and-progress.md)) — milestone completion → objective progress; recomputed inline on task completion. `ProgressCalculatorTest` (8). Live: completing a milestone's task rolled its objective to 50%. |
 | Tasks (Blueprint §10) | ✅ | `orbit.tasks`, `GET/POST /api/v1/tasks`, `GET/PATCH /tasks/{id}`, `POST /tasks/{id}/complete`. Objective required, milestone optional; both ownership-checked (404). |
-| Priority Engine v1 (Blueprint §22) | ✅ | Weighted sum, Blueprint §22 weights, configurable (`orbit.priority.weights.*`, startup-validated to sum 1). Pure `PriorityEngine`; `priority_reason` JSONB carries every factor's value/weight/contribution/source. `PriorityEngineTest` (8, direct). [ADR-014](docs/adr/ADR-014-priority-engine-v1.md) — **weight values flagged for sign-off**. |
+| Priority Engine v1 (Blueprint §22) | ✅ | Weighted sum, Blueprint §22 weights, configurable (`orbit.priority.weights.*`, startup-validated to sum 1). Pure `PriorityEngine`; `priority_reason` JSONB carries every factor's value/weight/contribution/source. `PriorityEngineTest` (8, direct). [ADR-014](docs/adr/ADR-014-priority-engine-v1.md) — weights ratified (M2 sign-off). |
 | Daily planning (Blueprint §10, §20) | ✅ | `orbit.daily_plans` + `daily_plan_tasks`. Pure `DailyPlanGenerator` (greedy by priority within budget); `DailyPlanService` the inline caller ([ADR-015](docs/adr/ADR-015-daily-plan-generation.md)). `GET /daily-plans/{date}`, `POST /generate`, `POST /{id}/regenerate`. `DailyPlanGeneratorTest` (6, direct). |
 | Command Center aggregate | ✅ | `GET /api/v1/dashboard` — greeting, objective/execution health, next-best-action (with explanation), today block. `GET/PUT /api/v1/me/preferences` for the daily budget. |
 | Web — real pages | ✅ | Command Center at `/` (moved from `/command-center`, ADR-008); real `/objectives` (list + create), `/objectives/[id]` (milestones, tasks, progress ring, "Why this?" explainer), `/today` (generate + complete). TanStack Query via the ADR-013 BFF proxy — no direct API calls. |
@@ -110,7 +110,7 @@ runner, real-time updates. See
 [deferred-items.md](docs/engineering/deferred-items.md).
 
 M2 ADRs: [ADR-014](docs/adr/ADR-014-priority-engine-v1.md) (priority weights —
-**needs sign-off**), [ADR-015](docs/adr/ADR-015-daily-plan-generation.md),
+ratified), [ADR-015](docs/adr/ADR-015-daily-plan-generation.md),
 [ADR-016](docs/adr/ADR-016-objective-status-and-progress.md).
 
 ### Milestone 3 (Career & Skills) — verified 2026-09-07
@@ -119,9 +119,9 @@ M2 ADRs: [ADR-014](docs/adr/ADR-014-priority-engine-v1.md) (priority weights —
 |------|--------|-------|
 | Skills domain (Blueprint §12, §20) | ✅ | V4 migration: `orbit.skills` (global catalog), `skill_dependencies` (DAG, `CHECK (prerequisite <> dependent)`), `skill_assessments` (append-only, 5 dims + overall). `GET /api/v1/skills`, `/skills/{id}`, `/skills/{id}/dependencies`, `POST /skills/{id}/assessments`. [ADR-019](docs/adr/ADR-019-skill-dependency-graph.md). |
 | Skill catalog seed | ✅ | V5 migration — 34 curated skills + 41 dependency edges, stable `uuid5` ids, `ON CONFLICT DO NOTHING`. Asserted acyclic by `SkillGraphValidatorTest`, a Python generator check, **and** a startup `ApplicationRunner` (`SkillsConfig`) that fails fast on a cycle. Live: log line `Skill dependency graph verified acyclic (41 edges).` [ADR-020](docs/adr/ADR-020-skill-catalog-seed.md). |
-| Skill Scoring v1 (Blueprint §23) | ✅ | Pure `SkillScoringEngine`: `overall = 0.20·knowledge + 0.25·practical + 0.20·evidence + 0.15·interview + 0.20·production`. Configurable (`orbit.skills.scoring.weights.*`), startup-validated to sum 1 (±0.001). Every score carries a weights `fingerprint` + `confidence: self-reported` (all M3 assessments are `self`). `SkillScoringEngineTest` (5), `SkillScoringWeightsTest` (3). [ADR-017](docs/adr/ADR-017-skill-scoring-v1.md) — **weight values flagged for sign-off**. |
+| Skill Scoring v1 (Blueprint §23) | ✅ | Pure `SkillScoringEngine`: `overall = 0.20·knowledge + 0.25·practical + 0.20·evidence + 0.15·interview + 0.20·production`. Configurable (`orbit.skills.scoring.weights.*`), startup-validated to sum 1 (±0.001). Every score carries a weights `fingerprint` + `confidence: self-reported` (all M3 assessments are `self`). `SkillScoringEngineTest` (5), `SkillScoringWeightsTest` (3). [ADR-017](docs/adr/ADR-017-skill-scoring-v1.md) — weights ratified 2026-09-08. |
 | Career targets (Blueprint §8) | ✅ | V4: `orbit.career_targets` + `career_target_skills` (importance / interview / production weights). `GET/POST /api/v1/career/targets`, `GET/PATCH/DELETE /targets/{id}`. Real `objectives.career_target_id` FK (`ON DELETE SET NULL`); linking an objective to a target the caller doesn't own → `404`. |
-| Career Readiness (Blueprint §24) | ✅ | Pure `CareerReadinessCalculator`: importance-weighted skill capability (0.70) blended with interview-weight-weighted interview readiness (0.30), renormalised. Evidence/project coverage rendered as explicit `null` + `not-tracked-until-…`, never silent zero. Critical gaps + high-leverage skills ranked. `GET /api/v1/career/readiness`, `/career/gaps`. Reproducible. `CareerReadinessCalculatorTest` (7). [ADR-018](docs/adr/ADR-018-career-readiness.md) — **blend weights flagged for sign-off**. |
+| Career Readiness (Blueprint §24) | ✅ | Pure `CareerReadinessCalculator`: importance-weighted skill capability (0.70) blended with interview-weight-weighted interview readiness (0.30), renormalised. Evidence/project coverage rendered as explicit `null` + `not-tracked-until-…`, never silent zero. Critical gaps + high-leverage skills ranked. `GET /api/v1/career/readiness`, `/career/gaps`. Reproducible. `CareerReadinessCalculatorTest` (7). [ADR-018](docs/adr/ADR-018-career-readiness.md) — blend weights ratified 2026-09-08. |
 | Priority Engine factor swap (ADR-014) | ✅ | `careerRelevance`, `skillGap`, `dependencyImpact`, `interviewValue` now computed from real career/skill data when a task has a skill and/or its objective has a career target; otherwise the M2 neutral/proxy default is unchanged. Formula, weight set and `fingerprint` **byte-identical**. `projectImpact` stays neutral (no Projects domain). `PriorityEngineTest` (9), `PriorityFactorSwapIntegrationTest` (2). |
 | Web — Career + Skills | ✅ | Real `/career` (readiness radial, component breakdown, critical gaps, high-leverage skills, target list, create-from-template), `/skills` (catalog grouped by category, capability bars), `/skills/[id]` (assess dialog, prerequisites/dependents, dimension breakdown). Objective↔target link in `ObjectiveForm` + shown on the objective detail page. TanStack Query via the ADR-013 BFF proxy. `CapabilityBar.test.tsx` (3). |
 | Ownership enforcement (404) | ✅ | Extended to career targets and skill assessments. `CareerIntegrationTest` (7), `SkillsIntegrationTest` (4). Live E2E + tests: user B → 404 on user A's target; objective can only link a target the caller owns. |
@@ -136,10 +136,14 @@ overrides, readiness trend/history, evidence & project coverage in readiness
 [deferred-items.md](docs/engineering/deferred-items.md).
 
 M3 ADRs: [ADR-017](docs/adr/ADR-017-skill-scoring-v1.md) (skill scoring weights —
-**needs sign-off**), [ADR-018](docs/adr/ADR-018-career-readiness.md) (readiness
-blend weights — **needs sign-off**),
+ratified 2026-09-08), [ADR-018](docs/adr/ADR-018-career-readiness.md) (readiness
+blend weights — ratified 2026-09-08),
 [ADR-019](docs/adr/ADR-019-skill-dependency-graph.md),
 [ADR-020](docs/adr/ADR-020-skill-catalog-seed.md).
+
+All M3 sign-off items (skill scoring weights, readiness blend, `careerRelevance`
+proxy fallback, `confidence: self-reported` ceiling) — **ratified by the product
+owner 2026-09-08**.
 
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:
