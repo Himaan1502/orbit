@@ -1,7 +1,7 @@
 # ADR-024: Projects Domain — Schema, Objective / Task Linkage, Contribution Model
 
 ## Status
-Proposed — for product-owner scope sign-off (M5)
+Accepted — scope + sign-off items ratified by the product owner 2026-09-08
 
 ## Date
 2026-09-08

@@ -1,8 +1,9 @@
 # ADR-026: Evidence-Backed Confidence, Readiness with Evidence/Project Coverage, and the Final Priority-Engine Factor Swap
 
 ## Status
-Proposed — for product-owner scope sign-off (M5). **Readiness blend weights and
-the confidence thresholds need sign-off** (see §5).
+Accepted — blend weights (0.45 / 0.20 / 0.20 / 0.15), confidence thresholds, the
+`self_attested` ceiling, and "evidence never writes a `skill_assessments` row"
+all ratified by the product owner 2026-09-08.
 
 ## Date
 2026-09-08
@@ -76,6 +77,18 @@ ADR-018 already does):
 the pure signature and reproducibility (Blueprint §43) are preserved. A target
 skill with no evidence contributes `0` to `evidenceCoverage` — a real gap, the
 ADR-018 convention.
+
+**`evidenceCoverage` / `projectCoverage` enter the blend the moment M5 ships**,
+not "once the user has some" — a coverage of `0` is honest information ("you
+haven't demonstrated this"), the same convention ADR-018 already uses for an
+un-assessed target skill. **Consequence, on the record:** for a user with
+self-assessments but no evidence and no projects yet, the readiness number
+**drops** when M5 ships — `skillCapability`'s share of the blend falls from
+`0.70` (renormalised, M3/M4) to `0.45`, with `0.35` now going to
+evidence/project coverage that starts at `0`. Nothing about the user's skills
+changed; the definition of "ready" tightened to mean *demonstrated* readiness.
+The Career page copy frames this ("readiness now weights evidence and project
+work — log evidence to raise it") and the M5 report calls it out.
 
 Career **gaps** (`GET /api/v1/career/gaps`) gains **`evidenceGaps`** (target
 skills with capability ≥ some bar but `evidenceStrength` ≈ 0 — "you can do it,

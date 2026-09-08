@@ -1,7 +1,7 @@
 # ADR-025: Evidence Domain — Schema, Types, Verification Ceiling
 
 ## Status
-Proposed — for product-owner scope sign-off (M5)
+Accepted — scope + the `self_attested` M5 ceiling ratified by the product owner 2026-09-08
 
 ## Date
 2026-09-08
