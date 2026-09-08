@@ -67,10 +67,12 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
             <a
               href={r.sourceUrl}
               target="_blank"
-              rel="noreferrer noopener"
-              className="mt-3 inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:text-[var(--accent-cyan)]"
+              rel="noopener noreferrer"
+              title={`Open ${r.name} on ${r.sourceName} (opens in a new tab)`}
+              className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-cyan)]"
             >
-              Source · {r.sourceName} <ExternalLink size={11} />
+              View on {r.sourceName}
+              <ExternalLink size={12} aria-hidden="true" />
             </a>
           </div>
           <div className="shrink-0">
