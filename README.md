@@ -10,7 +10,7 @@ ORBIT is a modular platform for career planning, skill development, project trac
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14 (App Router) · TypeScript · Tailwind CSS · shadcn/ui |
+| Frontend | Next.js 14 (App Router) · TypeScript · Tailwind CSS · hand-built primitives + Radix UI ([ADR-030](docs/adr/ADR-030-frontend-component-primitives.md)) · TanStack Query · Recharts |
 | Backend | Java 21 · Spring Boot 3.2 · Spring Security · Spring Data JPA |
 | Auth | Self-hosted OIDC — Spring Authorization Server (`apps/auth`) |
 | Database | PostgreSQL 16 · Flyway migrations |

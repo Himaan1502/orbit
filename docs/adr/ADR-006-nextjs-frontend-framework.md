@@ -37,5 +37,14 @@ The PRD's specification of Vite + Zustand + React Router is superseded by the mo
 1. **React + Vite (PRD spec)**: Not chosen because the Blueprint and Architecture Spec — which govern code structure per the Handoff precedence rules — both specify Next.js.
 
 ## Consequences
-- **Positive**: Server Components for performance, built-in routing, SSR/SSG capabilities, excellent TypeScript support, shadcn/ui provides accessible, customizable components.
+- **Positive**: Server Components for performance, built-in routing, SSR/SSG capabilities, excellent TypeScript support.
 - **Negative**: Slightly heavier framework than Vite for a primarily client-side SPA. App Router is newer with evolving patterns. Next.js build times can be longer than Vite.
+
+## History
+- **2026-09-05** — Accepted. The stack listed **shadcn/ui** as the component
+  library.
+- **2026-09-09** — The `shadcn/ui` line is superseded by
+  [ADR-030](ADR-030-frontend-component-primitives.md): shadcn/ui was never
+  adopted; the component layer is hand-built token-driven primitives plus Radix
+  UI for `Dialog` / `DropdownMenu` / `Tooltip` / `Tabs`. Next.js, Tailwind,
+  TanStack Query, Recharts, Zod, Lucide are unchanged.
