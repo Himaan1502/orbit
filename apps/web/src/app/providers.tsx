@@ -1,6 +1,7 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { TooltipProvider } from '@radix-ui/react-tooltip';
 import { useState, useEffect } from 'react';
 import { useThemeStore } from '@/stores/theme';
 
@@ -30,7 +31,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeInitializer />
-      {children}
+      <TooltipProvider delayDuration={200} skipDelayDuration={300}>
+        {children}
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

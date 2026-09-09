@@ -11,17 +11,15 @@ import {
 import { CompareChart, Sparkline, TrendChart } from '@/features/analytics/charts';
 import { Button } from '@/components/ui/Button';
 import { Card, CardLabel } from '@/components/ui/Card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States';
 import type { CareerAnalytics, ExecutionAnalytics, SkillAnalytics } from '@/lib/api-types';
-
-const TABS = ['Execution', 'Career', 'Skills'] as const;
-type Tab = (typeof TABS)[number];
 
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
 export default function AnalyticsPage() {
-  const [tab, setTab] = useState<Tab>('Execution');
+  const [tab, setTab] = useState('Execution');
 
   return (
     <div className="animate-fade-in">
@@ -39,26 +37,22 @@ export default function AnalyticsPage() {
         </Link>
       </header>
 
-      <div className="mb-6 flex gap-1 border-b border-[var(--border)]">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            aria-pressed={tab === t}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
-              tab === t
-                ? 'border-[var(--accent-violet)] text-[var(--text-primary)]'
-                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'Execution' && <ExecutionPanel />}
-      {tab === 'Career' && <CareerPanel />}
-      {tab === 'Skills' && <SkillsPanel />}
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="Execution">Execution</TabsTrigger>
+          <TabsTrigger value="Career">Career</TabsTrigger>
+          <TabsTrigger value="Skills">Skills</TabsTrigger>
+        </TabsList>
+        <TabsContent value="Execution">
+          <ExecutionPanel />
+        </TabsContent>
+        <TabsContent value="Career">
+          <CareerPanel />
+        </TabsContent>
+        <TabsContent value="Skills">
+          <SkillsPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
