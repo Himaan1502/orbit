@@ -205,8 +205,7 @@ public class AnalyticsService {
         Instant toI = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
 
         var trend = readiness.readinessTrend(careerTargetId, fromI, toI);
-        var targetSkills = targets.getMine(trend.careerTargetId()).skills();
-        Set<UUID> targetSkillIds = targetSkills.stream()
+        Set<UUID> targetSkillIds = targets.skillsOf(trend.careerTargetId()).stream()
                 .map(s -> s.getSkillId()).collect(Collectors.toSet());
 
         List<ReadinessPoint> readinessTrend = trend.points().stream()

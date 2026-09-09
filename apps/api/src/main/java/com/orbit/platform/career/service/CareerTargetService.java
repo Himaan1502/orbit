@@ -70,6 +70,21 @@ public class CareerTargetService {
                 .findFirst().orElse(null);
     }
 
+    /** Every ACTIVE target of a user, each with its weighted skill set — the Weekly Review job path (no security context). */
+    @Transactional(readOnly = true)
+    public List<TargetWithSkills> activeWithSkillsFor(UUID userId) {
+        return targets.findByUserIdAndDeletedAtIsNullOrderByPriorityDescCreatedAtDesc(userId).stream()
+                .filter(t -> t.getStatus() == CareerTargetStatus.ACTIVE)
+                .map(t -> new TargetWithSkills(t, targetSkills.findByCareerTargetId(t.getId())))
+                .toList();
+    }
+
+    /** A target's weighted skill set by id — for callers that already resolved ownership. */
+    @Transactional(readOnly = true)
+    public List<CareerTargetSkill> skillsOf(UUID targetId) {
+        return targetSkills.findByCareerTargetId(targetId);
+    }
+
     @Transactional
     public TargetWithSkills create(CreateCareerTargetRequest req) {
         UUID userId = currentUser.getOrProvision().getId();

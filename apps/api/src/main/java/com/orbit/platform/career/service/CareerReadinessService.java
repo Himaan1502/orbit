@@ -80,15 +80,24 @@ public class CareerReadinessService {
      */
     @Transactional(readOnly = true)
     public NamedTrend readinessTrend(UUID explicitTargetId, Instant from, Instant to) {
-        UUID userId = currentUser.currentUserId();
+        return readinessTrendFor(currentUser.currentUserId(), explicitTargetId, from, to);
+    }
+
+    /**
+     * The readiness trend for an explicit user — the entry point the scheduled
+     * Weekly Review job uses (no security context). Ownership: the target must
+     * belong to {@code userId}.
+     */
+    @Transactional(readOnly = true)
+    public NamedTrend readinessTrendFor(UUID userId, UUID explicitTargetId, Instant from, Instant to) {
         CareerTarget target = explicitTargetId != null
-                ? targets.getMine(explicitTargetId).target()
+                ? targets.getMine(explicitTargetId).target()   // ownership-scoped (request path only)
                 : targets.primaryOf(userId);
-        if (target == null) {
+        if (target == null || !target.getUserId().equals(userId)) {
             throw ApiException.notFound("No career target set.");
         }
 
-        List<CareerTargetSkill> cts = targets.getMine(target.getId()).skills();
+        List<CareerTargetSkill> cts = targets.skillsOf(target.getId());
         Set<UUID> targetSkillIds = cts.stream().map(CareerTargetSkill::getSkillId).collect(Collectors.toSet());
         Map<UUID, String> names = skills.findAll().stream()
                 .collect(Collectors.toMap(Skill::getId, Skill::getCanonicalName));
