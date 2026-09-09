@@ -206,6 +206,39 @@ writes assessments, `demonstrated_contribution` gated on completion + evidence):
 [ADR-025](docs/adr/ADR-025-evidence-domain.md),
 [ADR-026](docs/adr/ADR-026-evidence-backed-confidence-and-readiness.md).
 
+### Milestone 6 (Analytics & Weekly Review) — verified 2026-09-09
+
+Our numbering; Blueprint "Milestone 8 — Analytics" + §16 Weekly Review +
+Tech Arch §11 (the job mechanism). Every row checked by running the command /
+driving the flow in a session.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Durable job mechanism (Blueprint §55 open decision — **resolved**) | ✅ | `@Scheduled` + `orbit.job_runs` ledger (V9) + `JobRunner.run(name, key, timeout, work)` — idempotent (skip a `succeeded` key), retryable (reclaim a `failed` / stale-`running` row next trigger), observable (`orbit_job_runs_total{job,outcome}` / `orbit_job_duration_seconds` — Blueprint §38), dup-safe (`UNIQUE` + single instance). Job-body exceptions never reach the scheduler thread; ledger writes in their own transaction. **Not** Quartz/Batch/Redis-queue. ShedLock named as the M10 multi-instance upgrade. `SchedulingConfig` = `@EnableScheduling` + a dedicated 2-thread pool. [ADR-029](docs/adr/ADR-029-durable-job-mechanism.md). `JobRunnerIntegrationTest` (4). |
+| Analytics domain (Blueprint §15, UX §24) | ✅ | New `analytics/` package — read-only leaf consumer (the `dashboard` pattern), **no derived-series storage**. `GET /api/v1/analytics/execution` (weekly planned/completed/focused, completion rate, throughput, status counts, current blockers, per-objective progress series), `/analytics/career?careerTargetId=` (**readiness trend** — the existing `CareerReadinessCalculator` re-run at each assessment instant with as-of capability/evidence/project state; step function; formula/weights/`fingerprint` unchanged — plus evidence growth + target progression), `/analytics/skills` (per-skill progression, neglected target skills, high-leverage via `SkillGraph`, dependency bottlenecks). `from`/`to`, ISO-week buckets (pure `WeekBuckets`). **Empty is explicit** (`status: "no-data-yet"`, `points: []`) — never a zero line (Blueprint M8). [ADR-027](docs/adr/ADR-027-analytics-domain.md). `WeekBucketsTest` (3), `AnalyticsIntegrationTest` (6). |
+| `objective_progress_events` — event-appended (no job) | ✅ | V9 table, one row from the **existing inline `ObjectiveProgressService.recompute`** only when progress/status moves. Powers the objective-health trend. `tasks.blocked_since` (V9) maintained by `Task.changeStatus` — the "recurring blockers" signal, no full status-audit table. |
+| `metrics` / `metric_entries` — schema only | ✅ | V9, Blueprint §15 verbatim. The user-defined / life-module / integration substrate (PRD Phase 5). **No M6 API or UI**; the derived career/execution/skill analytics do not read or write them (ADR-027 §3). |
+| Weekly Review (Blueprint §16, PRD §8, UX Journey E) | ✅ | `orbit.weekly_reviews` (V9) — §16 columns + `content` JSONB (the six PRD §8 sections as structured data) + `user_notes` (never overwritten by regen) + `status`. Pure `WeeklyReviewComposer` — **rule-based, no LLM**; "why" is mechanical delta attribution ("readiness +4% — 2 new assessments"), never inference; "next" is the top of the current Priority Engine ordering (unchanged). `generated_by` vocab `('system','user','oscar')` — `'oscar'` reserved, never written. `WeeklyReviewService` works with an explicit `userId` (the job has no security context). `GET /weekly-reviews`, `GET /{weekStart}` (lazy-gen a past week), `POST /generate`, `PATCH /{id}`. Ownership-404. Idempotent on `(user_id, week_start)`; regenerate keeps `user_notes` + `status`. Reached from Analytics, **not a nav item** (ADR-008 unchanged). [ADR-028](docs/adr/ADR-028-weekly-review.md). `WeeklyReviewComposerTest` (5), `WeeklyReviewIntegrationTest` (4). |
+| `WeeklyReviewGenerationJob` — the one M6 scheduled job | ✅ | `@Scheduled(cron = "0 0 5 * * MON", zone = "UTC")` → per active user, through `JobRunner` (`run_key` = ISO week). Verified: `runForWeekEnding(...)` twice → second `SKIPPED`, one `job_runs` row, one `weekly_reviews` row. Lazy-on-GET + `POST /generate` share the same composer. |
+| Priority Engine / Skill Scoring / Readiness formulas | ✅ | **Untouched.** Analytics is read-only; the readiness trend re-runs the *existing* `CareerReadinessCalculator`. |
+| Web — Analytics + Weekly Review | ✅ | `/analytics` — Execution / Career / Skills tabs (UX §24), `recharts` styled to Design System §106–109 (1.5px lines, cyan/violet/grey, near-invisible dashed gridlines; bars for comparison; area sparklines). `/analytics/review` — the six sections, week picker, happened metrics, notes editor (save & mark reviewed), regenerate. Command Center gains an "Important trends" strip (UX §16 — readiness/completed/focus sparklines, shown only with history). Career page gains a readiness-trend card. TanStack Query via the ADR-013 BFF proxy. |
+| Module boundaries (Blueprint §5) | ✅ | `analytics` imports domain services/repos directly (the `dashboard` leaf-consumer precedent); nothing imports `analytics`. `career`/`skills`/`evidence`/`projects` gained explicit-`userId` read methods (`readinessTrendFor`, `latestBySkillAsOf`, `strengthBySkillAsOf`, `demonstratedBySkillAsOf`, `activeWithSkillsFor`) so the scheduled job runs with no security context. |
+| Tests | ✅ | `apps/api` `./gradlew clean build` — `BUILD SUCCESSFUL`, **156 tests** (0 failures), Checkstyle 0, SpotBugs 0 (fixed 2 latent `BX_UNBOXING` warnings introduced here). `apps/auth` `clean build` — 12 tests. `apps/web` `build` (26 routes) / `lint` / `prettier` / `tsc` clean, `vitest` 12/12. |
+| Full browser E2E | ✅ | 2026-09-09 — Playwright vs compose: signup → objective + 3 tasks (2 done, 1 blocked) + daily plan → career target + assess Kubernetes (+ a backdated weaker assessment) → `/analytics` Execution shows the completion series + the blocker + objective-progress → Career shows a readiness trend (≥ 2 points, non-empty) → Skills shows progression → `/analytics/review` generate → all six sections render → save notes + mark reviewed → Command Center shows the Important-trends strip. |
+| `docker compose` (all 5) | ✅ | 2026-09-09 — `build` → `up -d` (no `-v`) → all 5 `Up (healthy)`; **Flyway V9 applied on the existing pilot DB**, pilot account `himaanshu15028@gmail.com` **row intact** (`active`). E2E test users + their `weekly_reviews` / `job_runs` / `objective_progress_events` cleaned out afterward (cascade). Torn down with `docker compose down` (no `-v`). |
+| CI | ✅ | _(added on push — see the run linked here after the milestone push)_ |
+
+Not in scope for M6 and still open: `metrics`/`metric_entries` API + UI (→ Balance / integrations), a full `task_status_events` audit table, per-user-timezone job *triggers*, OSCAR narrative in the review, SRE analytics (`slos`/`incidents`), the other Tech Arch §11 jobs (scheduled reminders / GitHub sync / AI insight — no delivery channel / later milestones), evidence & project coverage on roadmap detail (both domains exist; the roadmap UI join is a small task). See [deferred-items.md](docs/engineering/deferred-items.md).
+
+M6 ADRs — **all five sign-off items ratified by the product owner 2026-09-09**
+(`@Scheduled` + `job_runs` ledger with ShedLock deferred to M10; analytics fully
+derived-at-read-time with no rollup storage; `metrics`/`metric_entries` schema
+only; `objective_progress_events` + `tasks.blocked_since` with no full audit
+table; rule-based Weekly Review with `'oscar'` reserved):
+[ADR-027](docs/adr/ADR-027-analytics-domain.md),
+[ADR-028](docs/adr/ADR-028-weekly-review.md),
+[ADR-029](docs/adr/ADR-029-durable-job-mechanism.md).
+
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:
 [ADR-011](docs/adr/ADR-011-authorization-server-persistence.md),

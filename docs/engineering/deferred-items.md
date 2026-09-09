@@ -63,6 +63,26 @@ this file from the relevant comment.
 
 ---
 
+## ✅ Closed in Milestone 6
+
+- **Durable job mechanism** (Blueprint §55 open decision, deferred since M0) —
+  `@Scheduled` + an `orbit.job_runs` ledger + `JobRunner` (idempotent /
+  retryable / observable / bounded / dup-safe). Not Quartz / Batch / Redis-queue;
+  ShedLock named as the M10 multi-instance upgrade. Supersedes
+  **"M4+ — Durable / async job runner"** below.
+  [ADR-029](../adr/ADR-029-durable-job-mechanism.md).
+- **Analytics domain** — Blueprint §15 / M8, UX §24. Execution / career / skills
+  trends, all derived at read time (no rollup storage). The readiness trend
+  resolves the `ReadinessResponse.trend: null` stub. `objective_progress_events`
+  (event-appended) + `tasks.blocked_since`. `metrics` / `metric_entries` schema
+  only. [ADR-027](../adr/ADR-027-analytics-domain.md).
+- **Weekly Review** — Blueprint §16, PRD §8. `orbit.weekly_reviews` + a pure
+  rule-based `WeeklyReviewComposer` (no LLM; `generated_by='oscar'` reserved for
+  M7+) + `WeeklyReviewGenerationJob` (the one M6 scheduled job).
+  [ADR-028](../adr/ADR-028-weekly-review.md).
+
+---
+
 ## M5+ — Runtime roadmap importer
 
 **Context.** M4 loads the 13 roadmaps as a **Flyway versioned seed** (V7,
@@ -174,18 +194,19 @@ resolution path before it is needed is premature.
 
 ---
 
-## M4+ — Career readiness trend / history
+## ✅ Resolved (2026-09-09, Milestone 6) — Career readiness trend / history
 
-**Context.** [ADR-018](../adr/ADR-018-career-readiness.md) — `/career/readiness`
-returns a point-in-time number; the response carries `trend: null`.
-`skill_assessments` is append-only, so the history exists.
+`GET /api/v1/analytics/career` returns a `readinessTrend` — the existing
+`CareerReadinessCalculator` re-run at each assessment/evidence/project event
+with the as-of state (step function; formula/weights/`fingerprint` unchanged),
+plus a sparkline on the Career page and the full chart on
+`/analytics` ([ADR-027](../adr/ADR-027-analytics-domain.md) §2). The
+`ReadinessResponse.trend: null` stub on `/career/readiness` itself is still
+there — the history lives on the analytics endpoint, not the point-in-time one.
 
-**Deferred decision.** A `/career/readiness/history` endpoint (or a `trend`
-block) that recomputes readiness at past assessment timestamps, plus a sparkline
-on the Career page.
-
-**Why not now.** Needs more than a few days of real assessment data to be
-meaningful.
+**Still open:** evidence/project components of a past readiness point are
+reconstructed from `created_at` / `completed_at` (an approximation where the
+derived `demonstrated_contribution` has no history of its own).
 
 ---
 
@@ -216,24 +237,22 @@ interview-prep engines land.
 
 ---
 
-## M4+ — Durable / async job runner
+## ✅ Resolved (2026-09-09, Milestone 6) — Durable / async job runner
 
-**Context.** Daily-plan generation runs **inline** in the request
-([ADR-015](../adr/ADR-015-daily-plan-generation.md) §5). M2 progress rollup, M3
-skill scoring, and now M5 `project_skills.demonstrated_contribution` recompute
-([ADR-026](../adr/ADR-026-evidence-backed-confidence-and-readiness.md) §3) all
-follow the same inline pattern. Blueprint §33 / Tech Arch §11 call for "a
-durable job mechanism appropriate to the Spring ecosystem".
+`@Scheduled` + an `orbit.job_runs` ledger + `JobRunner` is ORBIT's durable job
+mechanism for the single-instance phase
+([ADR-029](../adr/ADR-029-durable-job-mechanism.md)) — idempotent, retryable,
+observable, bounded, dup-safe (Tech Arch §11). ShedLock is the named M10
+multi-instance upgrade. The one scheduled job so far is
+`WeeklyReviewGenerationJob`.
 
-**Deferred decision.** Introduce the runner (Quartz, Spring Batch, or a
-DB-polling worker — its own ADR) when analytics aggregation (Blueprint §15) or
-scheduled plan refresh needs background work, or when a single evidence/project
-edit fans out to enough recompute to be worth deferring. `DailyPlanGenerator`,
-`ProgressCalculator`, `SkillScoringEngine` and `DemonstratedContributionCalculator`
-are already pure functions such a runner can call directly.
-
-**Why not now.** Inline generation completes within the request for a single
-user; adding a runner before there is scheduled work to run is premature.
+**Still inline (by design, ADR-029 §Alternatives):** daily-plan generation, M2
+progress rollup, M3 skill scoring, M5 `demonstrated_contribution` recompute, and
+the M6 analytics series — all fast for a single user and correct against
+source-of-truth. Move one onto the runner if a single edit ever fans out to
+enough recompute to be worth deferring. `DailyPlanGenerator`,
+`ProgressCalculator`, `SkillScoringEngine`, `DemonstratedContributionCalculator`
+and `WeeklyReviewComposer` are pure functions a job can call directly.
 
 ---
 
