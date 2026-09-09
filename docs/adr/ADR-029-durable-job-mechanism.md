@@ -1,8 +1,10 @@
 # ADR-029: Durable Job Mechanism — `@Scheduled` + a `job_runs` Ledger
 
 ## Status
-Proposed — Milestone 6. Resolves Blueprint §55 open decision *"durable job
-implementation"*, deferred since M0.
+Accepted — `@Scheduled` + `job_runs` ledger as the durable job mechanism, ShedLock
+deferred to M10, one scheduled job in M6: all ratified by the product owner
+2026-09-09. Resolves Blueprint §55 open decision *"durable job implementation"*,
+deferred since M0.
 
 ## Date
 2026-09-09

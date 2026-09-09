@@ -1,7 +1,10 @@
 # ADR-028: Weekly Review — Schema, Rule-Based Composition (pre-OSCAR)
 
 ## Status
-Proposed — Milestone 6.
+Accepted — rule-based / templated review in M6 (no LLM), `content` JSONB with the
+six PRD §8 sections, `generated_by='oscar'` reserved but unused, lazy-on-GET +
+scheduled + `POST /generate` through one composer: all ratified by the product
+owner 2026-09-09. Milestone 6.
 
 ## Date
 2026-09-09

@@ -1,7 +1,11 @@
 # ADR-027: Analytics Domain — Derived Trends, the `metrics` Schema, and Objective Progress History
 
 ## Status
-Proposed — Milestone 6 (our numbering; Blueprint "Milestone 8 — Analytics").
+Accepted — derived-at-read-time analytics (no rollup storage), readiness trend =
+the existing calculator re-run at each user event, `metrics`/`metric_entries`
+schema-only in M6, `objective_progress_events` + `tasks.blocked_since` (no full
+audit table): all ratified by the product owner 2026-09-09. Milestone 6 (our
+numbering; Blueprint "Milestone 8 — Analytics").
 
 ## Date
 2026-09-09
