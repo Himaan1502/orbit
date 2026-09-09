@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, FolderKanban, Sparkles, Target } from 'lucide-react';
+import { ArrowRight, FolderKanban, LineChart, Sparkles, Target } from 'lucide-react';
 import { useDashboard } from '@/features/dashboard/api';
 import { useGeneratePlan } from '@/features/execution/api';
 import { useProjects } from '@/features/projects/api';
 import { useEvidenceList } from '@/features/evidence/api';
+import { useCareerAnalytics, useExecutionAnalytics } from '@/features/analytics/api';
+import { Sparkline } from '@/features/analytics/charts';
 import { EvidenceRow } from '@/features/evidence/EvidenceRow';
 import { Button } from '@/components/ui/Button';
 import { Card, CardLabel } from '@/components/ui/Card';
@@ -20,9 +22,14 @@ export default function CommandCenterPage() {
   const generate = useGeneratePlan(todayIso());
   const projects = useProjects();
   const recentEvidence = useEvidenceList({});
+  const execAnalytics = useExecutionAnalytics();
+  const careerAnalytics = useCareerAnalytics();
 
   const activeProjects = (projects.data ?? []).filter((p) => p.status === 'active');
   const latestEvidence = (recentEvidence.data ?? []).slice(0, 4);
+  const readinessTrend = careerAnalytics.data?.readinessTrend ?? [];
+  const execWeekly = execAnalytics.data?.weekly ?? [];
+  const showTrends = readinessTrend.length >= 2 || execWeekly.some((w) => w.completed > 0);
 
   if (isLoading) return <LoadingState />;
   if (isError || !data) return <ErrorState message="Could not load your Command Center." />;
@@ -184,6 +191,66 @@ export default function CommandCenterPage() {
               ))}
             </ul>
           </section>
+
+          {/* Important trends (UX §16) */}
+          {showTrends && (
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Important trends
+                </h2>
+                <Link
+                  href="/analytics"
+                  className="text-xs text-[var(--text-secondary)] hover:text-[var(--accent-cyan)]"
+                >
+                  Analytics
+                </Link>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Card className="p-4">
+                  <CardLabel>Readiness</CardLabel>
+                  {readinessTrend.length >= 2 ? (
+                    <>
+                      <Sparkline
+                        data={readinessTrend.map((p) => ({ v: p.overall }))}
+                        yKey="v"
+                        height={36}
+                      />
+                      <p className="mt-1 font-mono text-[11px] text-[var(--text-secondary)]">
+                        {Math.round((readinessTrend.at(-1)?.overall ?? 0) * 100)}% now
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                      Assess target skills to track this.
+                    </p>
+                  )}
+                </Card>
+                <Card className="p-4">
+                  <CardLabel>Completed / week</CardLabel>
+                  <Sparkline
+                    data={execWeekly.map((w) => ({ v: w.completed }))}
+                    yKey="v"
+                    height={36}
+                  />
+                  <p className="mt-1 font-mono text-[11px] text-[var(--text-secondary)]">
+                    {(execAnalytics.data?.throughputPerWeek ?? 0).toFixed(1)} avg
+                  </p>
+                </Card>
+                <Card className="p-4">
+                  <CardLabel>Focus / week</CardLabel>
+                  <Sparkline
+                    data={execWeekly.map((w) => ({ v: w.focusedMinutes }))}
+                    yKey="v"
+                    height={36}
+                  />
+                  <p className="mt-1 inline-flex items-center gap-1 font-mono text-[11px] text-[var(--text-secondary)]">
+                    <LineChart size={11} /> minutes planned
+                  </p>
+                </Card>
+              </div>
+            </section>
+          )}
 
           {/* Active projects */}
           {activeProjects.length > 0 && (

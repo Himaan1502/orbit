@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Briefcase, FileCheck, FolderKanban, Plus, Target, TrendingUp } from 'lucide-react';
 import { useCareerTargets, useGaps, useReadiness } from '@/features/career/api';
+import { useCareerAnalytics } from '@/features/analytics/api';
+import { Sparkline } from '@/features/analytics/charts';
 import { CareerTargetForm } from '@/features/career/CareerTargetForm';
 import { Button } from '@/components/ui/Button';
 import { Card, CardLabel } from '@/components/ui/Card';
@@ -63,6 +65,7 @@ export default function CareerPage() {
         <div className="space-y-6">
           {readiness.isLoading && <LoadingState />}
           {readiness.data && <ReadinessPanel readiness={readiness.data} />}
+          <ReadinessTrend />
 
           {gaps.data && (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -175,6 +178,43 @@ function ReadinessPanel({ readiness }: { readiness: CareerReadiness }) {
           </ul>
         </div>
       </div>
+    </Card>
+  );
+}
+
+function ReadinessTrend() {
+  const { data } = useCareerAnalytics();
+  const points = data?.readinessTrend ?? [];
+  if (points.length < 2) return null;
+  const first = Math.round(points[0].overall * 100);
+  const last = Math.round(points[points.length - 1].overall * 100);
+  const delta = last - first;
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between">
+        <CardLabel>Readiness trend</CardLabel>
+        <span
+          className={`font-mono text-[11px] ${
+            delta > 0
+              ? 'text-[var(--color-success)]'
+              : delta < 0
+                ? 'text-[var(--color-warning)]'
+                : 'text-[var(--text-secondary)]'
+          }`}
+        >
+          {delta >= 0 ? '+' : ''}
+          {delta} pts over {points.length} points
+        </span>
+      </div>
+      <div className="mt-2">
+        <Sparkline data={points.map((p) => ({ v: p.overall }))} yKey="v" height={48} />
+      </div>
+      <Link
+        href="/analytics"
+        className="mt-2 inline-block text-[11px] text-[var(--accent-cyan)] hover:underline"
+      >
+        Full analytics →
+      </Link>
     </Card>
   );
 }

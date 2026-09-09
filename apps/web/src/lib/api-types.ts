@@ -442,3 +442,155 @@ export interface Evidence {
   skills: EvidenceSkillLink[];
   projects: EvidenceProjectLink[];
 }
+
+// ===== Milestone 6 — Analytics & Weekly Review (Blueprint §15/§16/§20, UX §24, ADR-027/028/029) =====
+
+export interface AnalyticsRange {
+  from: string;
+  to: string;
+  weeks: number;
+}
+
+export interface ExecutionWeek {
+  weekStart: string;
+  planned: number;
+  completed: number;
+  focusedMinutes: number;
+}
+
+export interface StatusCounts {
+  todo: number;
+  inProgress: number;
+  blocked: number;
+  done: number;
+  skipped: number;
+}
+
+export interface BlockerRow {
+  taskId: string;
+  title: string;
+  blockedSince: string;
+  daysBlocked: number;
+}
+
+export interface ObjectiveProgressPoint {
+  at: string;
+  progress: number;
+  status: string;
+}
+
+export interface ObjectiveProgressSeries {
+  objectiveId: string;
+  title: string;
+  points: ObjectiveProgressPoint[];
+}
+
+export interface ExecutionAnalytics {
+  range: AnalyticsRange;
+  /** "ok" | "no-data-yet" */
+  status: string;
+  weekly: ExecutionWeek[];
+  completionRate: number | null;
+  throughputPerWeek: number;
+  statusCounts: StatusCounts;
+  blockers: BlockerRow[];
+  objectiveProgress: ObjectiveProgressSeries[];
+}
+
+export interface ReadinessTrendPoint {
+  at: string;
+  overall: number;
+  skillCapability: number;
+  assessedSkillCount: number;
+}
+
+export interface CountWeek {
+  weekStart: string;
+  count: number;
+}
+
+export interface TargetProgressionPoint {
+  at: string;
+  skillsAtThreshold: number;
+  targetSkillCount: number;
+}
+
+export interface CareerAnalytics {
+  careerTargetId: string;
+  targetName: string;
+  status: string;
+  readinessTrend: ReadinessTrendPoint[];
+  evidenceGrowth: CountWeek[];
+  targetProgression: TargetProgressionPoint[];
+}
+
+export interface SkillSeriesPoint {
+  at: string;
+  overall: number;
+}
+
+export interface SkillProgression {
+  skillId: string;
+  name: string;
+  points: SkillSeriesPoint[];
+}
+
+export interface NeglectedSkill {
+  skillId: string;
+  name: string;
+  lastAssessedAt: string | null;
+  daysSince: number | null;
+}
+
+export interface LeverageSkill {
+  skillId: string;
+  name: string;
+  leverage: number;
+  unlocks: number;
+}
+
+export interface Bottleneck {
+  skillId: string;
+  name: string;
+  blockedDependents: string[];
+}
+
+export interface SkillAnalytics {
+  status: string;
+  progression: SkillProgression[];
+  neglected: NeglectedSkill[];
+  highLeverage: LeverageSkill[];
+  bottlenecks: Bottleneck[];
+}
+
+// ----- Weekly Review -----
+
+export interface WeeklyReviewContent {
+  happened: {
+    tasksCompleted: number;
+    tasksPlanned: number;
+    evidenceLogged: number;
+    projectsAdvanced: number;
+    milestonesHit: number;
+  };
+  improved: { kind: string; label: string; delta: number; skillId: string | null }[];
+  missed: { taskId: string; title: string; objectiveTitle: string | null; dueAt: string | null }[];
+  why: { claim: string; basis: string }[];
+  changed: { kind: string; label: string; from: string; to: string }[];
+  next: { taskId: string; title: string; priorityScore: number | null; reason: string }[];
+}
+
+export interface WeeklyReview {
+  id: string;
+  weekStart: string;
+  weekEnd: string;
+  summary: string | null;
+  content: WeeklyReviewContent;
+  userNotes: string | null;
+  /** "system" | "user" | "oscar" — always "system" in M6. */
+  generatedBy: string;
+  /** "generated" | "reviewed" */
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
