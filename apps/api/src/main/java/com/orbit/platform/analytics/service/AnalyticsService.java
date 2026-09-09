@@ -290,8 +290,8 @@ public class AnalyticsService {
                             a == null ? null : a.getAssessedAt(), daysSince);
                 })
                 .filter(n -> n.daysSince() == null || n.daysSince() >= NEGLECTED_DAYS)
-                .sorted(Comparator.comparing(n -> n.daysSince() == null ? Long.MAX_VALUE : n.daysSince(),
-                        Comparator.reverseOrder()))
+                .sorted(Comparator.comparingLong(
+                        (NeglectedSkill n) -> n.daysSince() == null ? Long.MAX_VALUE : n.daysSince()).reversed())
                 .toList();
 
         // high-leverage — reuse SkillGraph.leverage over the target set

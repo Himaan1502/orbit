@@ -131,10 +131,11 @@ public class CareerReadinessService {
 
             Readiness r = CareerReadinessCalculator.compute(
                     targetSkills, capabilities, evidence, project, graph, properties);
-            double capComponent = r.componentBreakdown().stream()
+            Double capValue = r.componentBreakdown().stream()
                     .filter(c -> "skillCapability".equals(c.component()))
-                    .map(c -> c.value() == null ? 0.0 : c.value())
-                    .findFirst().orElse(0.0);
+                    .map(CareerReadinessCalculator.Component::value)
+                    .findFirst().orElse(null);
+            double capComponent = capValue == null ? 0.0 : capValue;
             points.add(new ReadinessPoint(t, r.overall(), capComponent, r.assessedSkillCount()));
         }
         return new NamedTrend(target.getId(), target.getName(), points);
