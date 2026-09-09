@@ -1,18 +1,34 @@
 'use client';
 
-import { Check, RotateCcw } from 'lucide-react';
-import type { Task } from '@/lib/api-types';
+import { useState } from 'react';
+import { Check, Pencil, RotateCcw } from 'lucide-react';
+import type { Milestone, Task } from '@/lib/api-types';
 import { Badge, StatusBadge } from '@/components/ui/Badge';
+import { Dialog } from '@/components/ui/Dialog';
 import { WhyThis } from '@/components/ui/WhyThis';
 import { cn } from '@/lib/utils';
 import { formatMinutes, impactLabel, relativeDueDate } from '@/lib/format';
 import { useCompleteTask, useUpdateTask } from './api';
+import { TaskForm } from './TaskForm';
 
-export function TaskRow({ task, objectiveId }: { task: Task; objectiveId?: string }) {
+export function TaskRow({
+  task,
+  objectiveId,
+  milestones = [],
+  projectLocked = false,
+}: {
+  task: Task;
+  objectiveId?: string;
+  /** The parent objective's milestones — enables the milestone picker in the edit form. */
+  milestones?: Milestone[];
+  /** True on a project page: the project is fixed, its picker is hidden. */
+  projectLocked?: boolean;
+}) {
   const complete = useCompleteTask(objectiveId);
   const update = useUpdateTask(objectiveId);
   const done = task.status === 'done';
   const impact = impactLabel(task.priorityScore);
+  const [editing, setEditing] = useState(false);
 
   return (
     <div
@@ -43,14 +59,24 @@ export function TaskRow({ task, objectiveId }: { task: Task; objectiveId?: strin
             <p className={cn('text-sm text-[var(--text-primary)]', done && 'line-through')}>
               {task.title}
             </p>
-            <button
-              onClick={() => (done ? update.mutate({ id: task.id, status: 'todo' }) : undefined)}
-              className="shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              aria-label="Reopen"
-              hidden={!done}
-            >
-              <RotateCcw size={14} />
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {done && (
+                <button
+                  onClick={() => update.mutate({ id: task.id, status: 'todo' })}
+                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  aria-label="Reopen"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              )}
+              <button
+                onClick={() => setEditing(true)}
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                aria-label="Edit task"
+              >
+                <Pencil size={13} />
+              </button>
+            </div>
           </div>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -58,6 +84,11 @@ export function TaskRow({ task, objectiveId }: { task: Task; objectiveId?: strin
             <Badge tone={impact === 'HIGH' ? 'cyan' : impact === 'LOW' ? 'neutral' : 'violet'}>
               {impact} impact
             </Badge>
+            {task.skillId && (
+              <Badge tone="violet" title="Skill-tagged">
+                skill
+              </Badge>
+            )}
             {task.estimatedMinutes && (
               <span className="font-mono text-[11px] text-[var(--text-secondary)]">
                 {formatMinutes(task.estimatedMinutes)}
@@ -77,6 +108,16 @@ export function TaskRow({ task, objectiveId }: { task: Task; objectiveId?: strin
           )}
         </div>
       </div>
+
+      <Dialog open={editing} onClose={() => setEditing(false)} title="Edit task">
+        <TaskForm
+          objectiveId={objectiveId ?? task.objectiveId ?? ''}
+          milestones={milestones}
+          projectId={projectLocked ? (task.projectId ?? undefined) : undefined}
+          task={task}
+          onDone={() => setEditing(false)}
+        />
+      </Dialog>
     </div>
   );
 }

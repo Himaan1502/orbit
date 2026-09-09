@@ -61,6 +61,13 @@ public final class TaskDtos {
 
             UUID projectId,
 
+            /** Explicitly detach a link — a PATCH can't distinguish "clear" from "absent" via a null id. */
+            Boolean clearMilestone,
+
+            Boolean clearSkill,
+
+            Boolean clearProject,
+
             @Pattern(regexp = "todo|in_progress|blocked|skipped",
                     message = "Use POST /tasks/{id}/complete to complete a task.")
             String status) {

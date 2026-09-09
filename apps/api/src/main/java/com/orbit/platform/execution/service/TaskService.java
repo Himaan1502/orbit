@@ -94,15 +94,21 @@ public class TaskService {
         if (req.dueAt() != null) {
             task.setDueAt(req.dueAt());
         }
-        if (req.milestoneId() != null) {
+        if (Boolean.TRUE.equals(req.clearMilestone())) {
+            task.setMilestoneId(null);
+        } else if (req.milestoneId() != null) {
             requireMilestoneInObjective(req.milestoneId(), task.getObjectiveId());
             task.setMilestoneId(req.milestoneId());
         }
-        if (req.skillId() != null) {
+        if (Boolean.TRUE.equals(req.clearSkill())) {
+            task.setSkillId(null);
+        } else if (req.skillId() != null) {
             requireSkillExists(req.skillId());
             task.setSkillId(req.skillId());
         }
-        if (req.projectId() != null) {
+        if (Boolean.TRUE.equals(req.clearProject())) {
+            task.setProjectId(null);
+        } else if (req.projectId() != null) {
             requireOwnedProject(req.projectId(), userId);
             task.setProjectId(req.projectId());
         }

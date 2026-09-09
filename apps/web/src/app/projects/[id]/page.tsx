@@ -227,7 +227,13 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         )}
         <div className="space-y-2">
           {tasks.map((t) => (
-            <TaskRow key={t.id} task={t} objectiveId={p.objectiveId ?? undefined} />
+            <TaskRow
+              key={t.id}
+              task={t}
+              objectiveId={p.objectiveId ?? undefined}
+              milestones={milestones.data ?? []}
+              projectLocked
+            />
           ))}
         </div>
       </section>

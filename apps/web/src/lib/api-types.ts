@@ -51,6 +51,7 @@ export interface Task {
   objectiveId: string | null;
   milestoneId: string | null;
   projectId: string | null;
+  skillId: string | null;
   title: string;
   description: string | null;
   estimatedMinutes: number | null;

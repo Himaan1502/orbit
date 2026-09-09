@@ -99,7 +99,7 @@ export default function ObjectiveDetailPage({ params }: { params: { id: string }
           )}
           <div className="space-y-2">
             {tasks.map((t) => (
-              <TaskRow key={t.id} task={t} objectiveId={id} />
+              <TaskRow key={t.id} task={t} objectiveId={id} milestones={milestones.data ?? []} />
             ))}
           </div>
         </section>

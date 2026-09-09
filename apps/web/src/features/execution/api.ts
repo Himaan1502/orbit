@@ -44,12 +44,30 @@ export function useCompleteTask(objectiveId?: string) {
   });
 }
 
+export interface UpdateTaskInput {
+  title?: string;
+  description?: string;
+  estimatedMinutes?: number | null;
+  dueAt?: string | null;
+  milestoneId?: string | null;
+  skillId?: string | null;
+  projectId?: string | null;
+  status?: string;
+  /** Explicitly detach the field — the API can't clear an FK from a null in a PATCH. */
+  clearMilestone?: boolean;
+  clearSkill?: boolean;
+  clearProject?: boolean;
+}
+
 export function useUpdateTask(objectiveId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...input }: { id: string; status?: string; title?: string }) =>
+    mutationFn: ({ id, ...input }: { id: string } & UpdateTaskInput) =>
       apiPatch<Task>(`/tasks/${id}`, input),
-    onSuccess: () => invalidateExecution(qc, objectiveId),
+    onSuccess: () => {
+      invalidateExecution(qc, objectiveId);
+      qc.invalidateQueries({ queryKey: ['projects'] });
+    },
   });
 }
 
