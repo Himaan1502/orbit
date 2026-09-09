@@ -67,7 +67,7 @@ export function TrendChart({
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: -12 }}>
         <CartesianGrid stroke={GRID} strokeDasharray="2 4" vertical={false} />
-        <XAxis dataKey={xKey} {...axisProps} />
+        <XAxis dataKey={xKey} {...axisProps} interval="preserveStartEnd" minTickGap={24} />
         <YAxis {...axisProps} domain={yDomain} width={44} />
         <Tooltip {...tooltipStyle()} />
         {series.map((s) => (
@@ -104,7 +104,7 @@ export function CompareChart({
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: -12 }}>
         <CartesianGrid stroke={GRID} strokeDasharray="2 4" vertical={false} />
-        <XAxis dataKey={xKey} {...axisProps} />
+        <XAxis dataKey={xKey} {...axisProps} interval="preserveStartEnd" minTickGap={24} />
         <YAxis {...axisProps} width={44} allowDecimals={false} />
         <Tooltip {...tooltipStyle()} cursor={{ fill: 'var(--bg-hover)' }} />
         {series.map((s) => (

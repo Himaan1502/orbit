@@ -23,6 +23,14 @@ import { EmptyState, LoadingState } from '@/components/ui/States';
 import { formatDate } from '@/lib/format';
 import type { WeeklyReview } from '@/lib/api-types';
 
+/** ISO Monday of the current week, yyyy-MM-dd. */
+function thisMonday(): string {
+  const d = new Date();
+  const day = (d.getDay() + 6) % 7; // 0 = Monday
+  d.setDate(d.getDate() - day);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function WeeklyReviewPage() {
   const list = useWeeklyReviews();
   const generate = useGenerateWeeklyReview();
@@ -47,8 +55,12 @@ export default function WeeklyReviewPage() {
             What happened, what moved, what to do next — generated from your data, not an LLM.
           </p>
         </div>
-        <Button size="sm" onClick={() => generate.mutate(undefined)} disabled={generate.isPending}>
-          <RefreshCw size={14} /> {generate.isPending ? 'Generating…' : 'Generate last week'}
+        <Button
+          size="sm"
+          onClick={() => generate.mutate(thisMonday())}
+          disabled={generate.isPending}
+        >
+          <RefreshCw size={14} /> {generate.isPending ? 'Generating…' : 'Generate this week'}
         </Button>
       </header>
 
@@ -58,10 +70,10 @@ export default function WeeklyReviewPage() {
         <EmptyState
           icon={CalendarRange}
           title="No reviews yet"
-          hint="A review is generated automatically each Monday — or generate last week's now."
+          hint="A review is generated automatically each Monday — or generate this week's so far."
           action={
-            <Button onClick={() => generate.mutate(undefined)} disabled={generate.isPending}>
-              <RefreshCw size={14} /> Generate last week
+            <Button onClick={() => generate.mutate(thisMonday())} disabled={generate.isPending}>
+              <RefreshCw size={14} /> Generate this week
             </Button>
           }
         />
