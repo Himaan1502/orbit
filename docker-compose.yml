@@ -104,6 +104,12 @@ services:
       # Reached over the compose network; no shared secret.
       OIDC_JWK_SET_URI: http://orbit-auth:9000/oauth2/jwks
       CORS_ORIGINS: http://localhost:3000
+      # OSCAR / AI providers (ADR-031). Both optional — unset => OSCAR shows the
+      # unavailable state and the rest of ORBIT is unaffected. Free-tier, no card.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
     ports:
       - "8080:8080"
     depends_on:

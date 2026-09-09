@@ -113,3 +113,24 @@ orbit:
     partial-threshold: 0.40
     verified-threshold: 1.00
     verified-min-types: 2
+  # OSCAR / AI provider abstraction (ADR-031, ADR-032). Startup-validated (AiConfig).
+  # Keys come from the environment ONLY and are never logged / returned / persisted.
+  # OSCAR is enabled iff at least one key is present; with none, /oscar shows the
+  # unavailable state and nothing else in ORBIT changes.
+  ai:
+    primary: gemini
+    fallback: groq
+    daily-request-cap: 50          # per-user OSCAR turns / rolling 24h (PolicyGuard)
+    prompt-token-budget: 24000     # per-turn prompt budget
+    output-token-budget: 2000      # per-turn model output cap
+    max-tool-rounds: 3             # read-tool rounds before a final answer is forced
+    connect-timeout-ms: 5000
+    read-timeout-ms: 60000        # gemini-3.6-flash reasons before answering — a turn can take ~30-60s
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-3.6-flash}
+      base-url: https://generativelanguage.googleapis.com
+    groq:
+      api-key: ${GROQ_API_KEY:}
+      model: ${GROQ_MODEL:openai/gpt-oss-120b}
+      base-url: https://api.groq.com/openai/v1

@@ -595,3 +595,83 @@ export interface WeeklyReview {
   createdAt: string;
   updatedAt: string;
 }
+
+// ----- OSCAR (M7) -----
+
+export interface OscarStatus {
+  enabled: boolean;
+  primary: string;
+  fallback: string;
+  dailyRequestCap: number;
+}
+
+export interface OscarConversation {
+  id: string;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OscarMessageView {
+  id: string;
+  /** "user" | "assistant" */
+  role: string;
+  content: string;
+  provider: string | null;
+  model: string | null;
+  createdAt: string;
+}
+
+export interface OscarEvidenceRef {
+  label: string;
+  /** "fact" | "metric" | "inference" */
+  kind: string;
+  value: string;
+}
+
+export interface OscarSections {
+  action: string | null;
+  why: string | null;
+  impact: string | null;
+  evidence: OscarEvidenceRef[] | null;
+}
+
+export interface OscarApiCall {
+  method: string;
+  path: string;
+  body: Record<string, unknown>;
+}
+
+export interface OscarProposedAction {
+  tool: string;
+  description: string;
+  call: OscarApiCall;
+  reasoning: string;
+}
+
+export interface OscarResponse {
+  /** "answer" | "recommendation" | "unavailable" */
+  kind: string;
+  message: string;
+  sections: OscarSections | null;
+  proposedActions: OscarProposedAction[] | null;
+  citations: string[] | null;
+  meta: {
+    provider: string | null;
+    model: string | null;
+    promptVersion: string | null;
+    outcome: string | null;
+    degraded: boolean;
+  } | null;
+}
+
+export interface OscarTurnResponse {
+  conversation: OscarConversation;
+  response: OscarResponse | null;
+  newMessages: OscarMessageView[];
+}
+
+export interface OscarConversationDetail {
+  conversation: OscarConversation;
+  messages: OscarMessageView[];
+}

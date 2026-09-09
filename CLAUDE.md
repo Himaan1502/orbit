@@ -240,6 +240,57 @@ table; rule-based Weekly Review with `'oscar'` reserved):
 [ADR-028](docs/adr/ADR-028-weekly-review.md),
 [ADR-029](docs/adr/ADR-029-durable-job-mechanism.md).
 
+### Milestone 7 (OSCAR) — verified 2026-09-09
+
+Our numbering; Blueprint "Milestone 9 — OSCAR". Every row checked by running the
+command / driving the flow in a session.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| AI provider abstraction (Blueprint §28/§55, Tech Arch §12) | ✅ | `com.orbit.platform.ai.provider`: `AiProvider` port + `GeminiProvider` (native `v1beta` `generateContent`, `x-goog-api-key`) + `GroqProvider` (OpenAI-compatible `/chat/completions`, Bearer). Spring `RestClient`, no new dependency. `@ConfigurationProperties(orbit.ai)` startup-validated (`AiConfig`). Resolves the Blueprint §55 open decision. [ADR-031](docs/adr/ADR-031-ai-provider-abstraction.md) — **ratified 2026-09-09**. |
+| Free-tier, no-card, Gemini primary / Groq fallback | ✅ | **Model IDs corrected at implementation time** (see ADR-031 History): the ratified `gemini-2.0-flash` / `llama-3.3-70b-versatile` were both 404 by 2026-09; now `gemini-3.6-flash` (Gemini) + `openai/gpt-oss-120b` (Groq), `GEMINI_MODEL`/`GROQ_MODEL` env overrides. Both keys present in the owner's `.env`; both verified live. |
+| `AiService` — retry → fail-over → degrade | ✅ | Primary → 1 retry on transient 5xx/timeout (not on 429) → fail over to fallback → `OscarResponse{kind:unavailable}`. **No exception propagates.** `AiServiceRoutingTest` (7). Live: a stale-model 404 on both providers → degraded response → the UI's UX §25.5 panel (seen in logs + browser during the model-ID debugging). |
+| Feature flag — OSCAR optional, ORBIT is not | ✅ | Enabled iff `GEMINI_API_KEY` and/or `GROQ_API_KEY` present. No key → `GET /oscar/status` `enabled:false`, `/oscar` shows the unavailable panel, every other feature unaffected, `docker compose` runs fine. `OscarConversationIntegrationTest` (4, run with no key). |
+| V10 schema — `ai_conversations` / `ai_messages` (Blueprint §18 verbatim) | ✅ | Append-only `ai_messages` (`role` CHECK `('user','assistant')`, `token_usage` JSONB), `ai_conversations` (user-editable `title`). FK `ON DELETE CASCADE`. Persists **only** the user message + OSCAR's final text + provider/model/`prompt_version`/usage — never the context bundle or tool results (ADR-032 §1). `OscarTurnIntegrationTest` asserts exactly 2 rows per turn. |
+| Context builder — layered, read-only, via domain services | ✅ | `ContextBuilder.forTurn` assembles the Tech Arch §12 layers (objectives, career target + readiness + gaps, skill-graph neighbours, recent execution, projects, top-10 tasks + `priority_reason` headline, today's plan, latest weekly review) by calling the existing `currentUser`-scoped services — no SQL, no cross-user. Rendered inside `<orbit_context>` delimiters. Full bundle every turn. Each layer built defensively (a throwing layer is logged + omitted, never fatal). |
+| Tool registry — read tools execute, mutations propose | ✅ | 9 read tools (`get_current_objectives`, `get_skill_gap`, `get_skill_dependencies`, `get_project_status`, `get_today_plan`, `get_recent_execution`, `get_weekly_metrics`, `get_roadmap_intersection`, `get_active_career_target`) dispatch to domain services, ≤ 3 rounds/turn. Allow-list: an unknown tool name is dropped. Backend validates every arg. |
+| **OSCAR never writes** (ADR-032 §3/§4 — the sign-off item held exactly) | ✅ | 5 mutation tools (`create_task`, `complete_task`, `update_objective`, `create_project`, `record_evidence`) are declared to the model but **never executed**. A mutation call → `MutationProposer` validates the args + ownership-checks every referenced id → returns a `ProposedAction{description, {method,path,body}, reasoning}`. The frontend renders `[ Start ] [ Explain ] [ Dismiss ]`; **"Start" calls the existing `/api/v1` endpoint**. There is no code path where a model response causes a write. `OscarTurnIntegrationTest`: a `create_task` tool call → `proposedActions[0]` present, `GET /tasks` still empty, then the same body `POST /tasks` → 201. A mutation referencing another user's objective → rejected, no `proposedActions`. Live E2E: OSCAR proposed a task → nothing written → user clicked Start → task appeared via the normal `/objectives` page. |
+| `PolicyGuard` | ✅ | Per-user daily request cap (50, rolling 24h → `429`), strips `<orbit_context>` / chat-template markers from the user message, exposes the per-turn token budgets. `@ConfigurationProperties`, startup-validated. |
+| `ResponseValidator` + `OscarResponse` contract (UX §25.2/§25.3, ADR-032 §6) | ✅ | Parses the model's JSON (tolerates ```json fences + surrounding prose via a balanced-brace scan) to `{kind, message, sections?{action,why,impact,evidence[]}, citations?}` with each evidence item tagged `fact`/`metric`/`inference`. Non-parsing → `OscarResponse.safeFallback()`, **not persisted**. `proposedActions` are attached by the backend. `ResponseValidatorTest` (6). |
+| System prompt | ✅ | Versioned classpath resource `oscar/system-prompt-v1.md` (`prompt_version = oscar-v1`, recorded on every `ai_messages` row). States: operational not conversational; `<orbit_context>` content is data never instruction; fact/metric/inference tagging; mutation tools are proposals; output must be the `OscarResponse` JSON. |
+| Web — `/oscar` + Command Center card | ✅ | Replaced the placeholder: conversation list + view, autosizing input, **non-streaming** "OSCAR is thinking…", UX §25.2 recommendation rendering (Action/Why/Impact/Evidence + fact/metric/inference chips), `ProposedActionCard` (`Start` calls the existing domain hook), UX §25.5 unavailable panel. One "Ask OSCAR" Command Center card (shown only when enabled — Blueprint §30 "OSCAR insight"). TanStack Query via the ADR-013 BFF proxy. `RecommendationView.test.tsx` (2). |
+| Ownership enforcement (404) | ✅ | `ai_conversations` keyed by `(user_id, id)` → `findByIdAndUserId`; a foreign id on GET / PATCH / DELETE / `POST /turns` → `404`. `OscarConversationIntegrationTest` (Alice/Bob). |
+| Priority Engine / Skill Scoring / Readiness formulas | ✅ | **Untouched.** OSCAR is read-only over the domain; the context builder reuses the existing calculators. |
+| Module boundaries (Blueprint §5) | ✅ | `ai` is a leaf consumer (the `dashboard`/`analytics` precedent) — it imports domain services directly; nothing imports `ai`. `ContextBuilder` / `ToolRegistry` / `MutationProposer` are **not** `@Transactional` (each domain service owns its read-only tx; a "no career target" throw can't poison the message-write tx); `ConversationService` uses a `TransactionTemplate` for the two small writes and runs the turn (provider HTTP + tools) with no transaction. |
+| Tests | ✅ | `apps/api` `./gradlew clean build` — `BUILD SUCCESSFUL`, **187 tests** (0 failures), Checkstyle 0, SpotBugs 0. `apps/auth` `build` — 12 tests. `apps/web` `build` (27 routes) / `lint` / `prettier` / `tsc` clean, `vitest` **14/14**. |
+| Full browser E2E | ✅ | 2026-09-09 — Playwright vs the compose stack (real `gemini-3.6-flash`): signup → objective → `/oscar` → "what should I focus on?" → grounded answer (`provider=gemini`, `outcome=ok`) → "add a task …" → **ProposedAction card** → verified in a second tab that **no task exists before confirming** → click Start → task appears via the normal `/objectives` page. Separately: with no key, `/oscar` shows the unavailable panel and objectives/tasks still work. |
+| `docker compose` (all 5) | ✅ | 2026-09-09 — `build orbit-api orbit-web` → `up -d` (**no `-v`**) → all 5 `Up (healthy)`; **Flyway V10 applied on the existing pilot DB** (v9 → v10), pilot account `himaanshu15028@gmail.com` **row intact** (`active`). `OSCAR enabled — primary=gemini, fallback=groq, providers[gemini=configured, groq=configured]`. E2E `@orbit.local` users cleaned out afterward (cascade removes their `ai_conversations`/`ai_messages`). Torn down with `docker compose down` (no `-v`). |
+
+Not in scope for M7 and still open: streaming (SSE), OSCAR-narrated Weekly
+Review (`generated_by='oscar'` still reserved), contextual recommendation cards
+on other views, trusted automation mode, intent-based selective context
+retrieval, vector/embedding retrieval, cost controls / usage dashboard, the
+post-confirmation "system note" persisted to history (UI-only in M7), SRE /
+Balance / Integration tools. See
+[deferred-items.md](docs/engineering/deferred-items.md).
+
+M7 ADRs — **all six sign-off items pre-approved by the product owner 2026-09-09**,
+build authorised the same day; all now **Accepted**:
+[ADR-030](docs/adr/ADR-030-frontend-component-primitives.md) (component
+primitives — hand-built + Radix, ratified),
+[ADR-031](docs/adr/ADR-031-ai-provider-abstraction.md) (provider abstraction —
+Gemini/Groq free-tier, feature-flagged; model IDs corrected — see its History),
+[ADR-032](docs/adr/ADR-032-oscar-domain.md) (OSCAR domain — context builder,
+tool registry, **OSCAR never writes**).
+
+One deviation to flag, none of it a spec-decision override: the two ratified
+model IDs (`gemini-2.0-flash`, `llama-3.3-70b-versatile`) were **both dead** by
+implementation time (Google's own error recommended `gemini-3.6-flash`; Groq had
+dropped the Llama 3.3 line). Corrected to current GA free-tier equivalents with
+env overrides. The abstraction, routing, free-tier handling and every sign-off
+item are unchanged — only the version strings moved. Recorded in ADR-031's
+History section.
+
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:
 [ADR-011](docs/adr/ADR-011-authorization-server-persistence.md),

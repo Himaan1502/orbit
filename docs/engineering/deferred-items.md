@@ -83,6 +83,48 @@ this file from the relevant comment.
 
 ---
 
+## ✅ Closed in Milestone 7 (OSCAR)
+
+- **AI provider abstraction** (Blueprint §55 open decision — *"exact AI
+  model/provider routing"*) — `AiProvider` port + Gemini (primary,
+  `gemini-3.6-flash`) / Groq (fallback, `openai/gpt-oss-120b`) adapters, both
+  free-tier / no-card; `AiService` with retry → fail-over → graceful degrade;
+  feature-flagged on a provider key. Model IDs are `GEMINI_MODEL` / `GROQ_MODEL`
+  env overrides. [ADR-031](../adr/ADR-031-ai-provider-abstraction.md).
+- **OSCAR domain** — `ai/` package, V10 `ai_conversations` / `ai_messages`
+  (Blueprint §18 verbatim, append-only). Layered `ContextBuilder` via the
+  existing ownership-scoped domain services. `ToolRegistry` (9 read tools) +
+  `MutationProposer` (5 mutation tools) — **OSCAR never writes**: a mutation tool
+  call becomes a `ProposedAction` the user confirms, which calls the existing
+  domain endpoint. `PolicyGuard` (per-user daily cap + prompt sanitisation),
+  `ResponseValidator` (`OscarResponse` schema, non-parsing → safe fallback,
+  unpersisted). Non-streaming. [ADR-032](../adr/ADR-032-oscar-domain.md).
+
+### Not in scope for M7 — still open
+
+- **Streaming responses (SSE).** M7 is request/response with a "thinking…"
+  state. Both providers support streaming; deferred (ADR-031 §Alternatives 4).
+- **OSCAR-narrated Weekly Review.** `weekly_reviews.generated_by` still only ever
+  written as `'system'`; `'oscar'` stays reserved. The rule-based composer is
+  unchanged.
+- **Contextual recommendation cards** on Today / objective / skill detail views
+  (UX §25.1). M7 ships the `/oscar` view + one Command Center card only.
+- **Trusted automation mode** (Blueprint §27) — a genuinely separate future ADR,
+  not a flag flip, precisely because OSCAR holds zero mutation capability today.
+- **Intent classification / selective context retrieval** (Blueprint §26
+  *"retrieve only relevant context"*). M7 sends the full bounded bundle every
+  turn (ADR-032 §2); Gemini's window absorbs it.
+- **Vector store / embeddings** for context (ADR-032 §Alternatives 3).
+- **Cost controls / usage dashboard.** `ai_messages.token_usage` is stored but
+  nothing acts on it (ADR-031 §3).
+- **The post-confirmation "system note"** (ADR-032 §4 step 4) is shown in the UI
+  only, not persisted — `ai_messages.role` is `('user','assistant')` and the
+  table is append-only. A `role='system'` note or a dedicated events table is a
+  small future addition if history needs to show confirmed actions.
+- **SRE / Balance / Integration tools** in the registry.
+
+---
+
 ## M5+ — Runtime roadmap importer
 
 **Context.** M4 loads the 13 roadmaps as a **Flyway versioned seed** (V7,

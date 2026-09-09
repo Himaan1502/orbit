@@ -1,10 +1,12 @@
 # ADR-030: Frontend Component Primitives — Hand-Built + Radix, Not shadcn/ui
 
 ## Status
-Proposed — supersedes the "shadcn/ui" line in
-[ADR-006](ADR-006-nextjs-frontend-framework.md) §Decision and in Tech Arch §4 /
-Blueprint §"Frontend Stack" for the component-library choice only (Next.js,
-Tailwind, TanStack Query, Recharts are unchanged).
+Accepted — ratified by the product owner 2026-09-09. Supersedes the "shadcn/ui"
+line in [ADR-006](ADR-006-nextjs-frontend-framework.md) §Decision and in
+Tech Arch §4 / Blueprint §"Frontend Stack" for the component-library choice only
+(Next.js, Tailwind, TanStack Query, Recharts are unchanged). The Radix pass
+(`Dialog` / `Tabs` / `Tooltip` / `DropdownMenu`) shipped in `0689bdd` and was
+accessibility-audited.
 
 ## Date
 2026-09-09

@@ -1,8 +1,9 @@
 # ADR-031: AI Provider Abstraction — Gemini (primary) / Groq (fallback), Free-Tier
 
 ## Status
-Proposed — Milestone 7 (our numbering; Blueprint "Milestone 9 — OSCAR").
-Resolves Blueprint §55 open decision *"exact AI model/provider routing"*.
+Accepted — approved by the product owner 2026-09-09 (all five sign-off items).
+Milestone 7 (our numbering; Blueprint "Milestone 9 — OSCAR"). Resolves Blueprint
+§55 open decision *"exact AI model/provider routing"*.
 
 ## Date
 2026-09-09
@@ -23,11 +24,11 @@ Nothing AI exists in the repo yet — no provider config, no HTTP client for
 outbound calls, no `ai/` package.
 
 **Provider constraint (product owner, 2026-09-09):** **Google Gemini via AI
-Studio** is the primary provider — its large context window (Gemini 2.0/2.5
-Flash: ~1M tokens) fits the Tech Arch §12 layered context-builder without
-sophisticated retrieval. **Groq** is the documented fallback in the abstraction
-layer. **Both are free-tier, no card required** — this must be a first-class
-design input, not a paid provider with a free tier bolted on.
+Studio** is the primary provider — its large context window (Gemini Flash:
+~1M tokens) fits the Tech Arch §12 layered context-builder without sophisticated
+retrieval. **Groq** is the documented fallback in the abstraction layer. **Both
+are free-tier, no card required** — this must be a first-class design input, not
+a paid provider with a free tier bolted on.
 
 ## Decision
 
@@ -36,9 +37,12 @@ design input, not a paid provider with a free tier bolted on.
 ```
 com.orbit.platform.ai.provider
   AiProvider (interface)      complete(AiRequest) -> AiResponse
-  GeminiProvider  @Component  — generativelanguage.googleapis.com, model gemini-2.0-flash
-  GroqProvider    @Component  — api.groq.com/openai/v1 (OpenAI-compatible), model llama-3.3-70b-versatile
+  GeminiProvider  @Component  — generativelanguage.googleapis.com/v1beta, model gemini-3.6-flash
+  GroqProvider    @Component  — api.groq.com/openai/v1 (OpenAI-compatible), model openai/gpt-oss-120b
 ```
+
+Model IDs are `GEMINI_MODEL` / `GROQ_MODEL` env overrides (defaults above) so a
+provider deprecating a model is a config change, not a redeploy — see History.
 
 - `AiRequest` — system prompt + prior turns + the user message + the tool
   declarations (JSON schema) + generation config (max output tokens,
@@ -168,3 +172,16 @@ AiService.respond(AiTurn) -> OscarResponse
 4. **Non-streaming** request/response in M7; streaming deferred.
 5. **Keys from env only**, never logged / returned / persisted; `token_usage`
    stored per message but not acted on (no cost controls in M7).
+
+## History
+
+- **2026-09-09 (M7 implementation).** The model IDs this ADR was drafted with —
+  `gemini-2.0-flash` and `llama-3.3-70b-versatile` — were both **404 by the time
+  the code ran** (Gemini's own error nudged to `gemini-3.6-flash`; Groq had
+  dropped the Llama 3.3 line entirely). Corrected the pinned defaults to
+  **`gemini-3.6-flash`** (Gemini) and **`openai/gpt-oss-120b`** (Groq) — both GA,
+  free-tier, tool-calling, large-context — and added `GEMINI_MODEL` /
+  `GROQ_MODEL` env overrides so the next deprecation is a config change, not a
+  rebuild. The provider abstraction, routing, free-tier handling and every
+  sign-off item are unchanged; only the version strings moved. This is a
+  world-moved correction, not a scope change.

@@ -1,7 +1,10 @@
 # ADR-032: OSCAR Domain — Conversations, Context Builder, Tool Registry, Confirmation-Gated Mutations
 
 ## Status
-Proposed — Milestone 7 (our numbering; Blueprint "Milestone 9 — OSCAR").
+Accepted — approved by the product owner 2026-09-09 (all five sign-off items).
+Item 3 (OSCAR never writes — mutation tools only ever produce a `ProposedAction`
+executed through the existing endpoint) is held exactly as designed. Milestone 7
+(our numbering; Blueprint "Milestone 9 — OSCAR").
 
 ## Date
 2026-09-09

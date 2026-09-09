@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, FolderKanban, LineChart, Sparkles, Target } from 'lucide-react';
+import { ArrowRight, Brain, FolderKanban, LineChart, Sparkles, Target } from 'lucide-react';
 import { useDashboard } from '@/features/dashboard/api';
 import { useGeneratePlan } from '@/features/execution/api';
 import { useProjects } from '@/features/projects/api';
 import { useEvidenceList } from '@/features/evidence/api';
 import { useCareerAnalytics, useExecutionAnalytics } from '@/features/analytics/api';
+import { useOscarStatus } from '@/features/oscar/api';
 import { Sparkline } from '@/features/analytics/charts';
 import { EvidenceRow } from '@/features/evidence/EvidenceRow';
 import { Button } from '@/components/ui/Button';
@@ -25,6 +26,7 @@ export default function CommandCenterPage() {
   const execAnalytics = useExecutionAnalytics();
   const careerAnalytics = useCareerAnalytics();
 
+  const oscar = useOscarStatus();
   const activeProjects = (projects.data ?? []).filter((p) => p.status === 'active');
   const latestEvidence = (recentEvidence.data ?? []).slice(0, 4);
   const readinessTrend = careerAnalytics.data?.readinessTrend ?? [];
@@ -307,6 +309,25 @@ export default function CommandCenterPage() {
                   <EvidenceRow key={e.id} evidence={e} />
                 ))}
               </ul>
+            </section>
+          )}
+
+          {/* OSCAR (Blueprint §30 — "OSCAR insight") */}
+          {oscar.data?.enabled && (
+            <section>
+              <Link
+                href="/oscar"
+                className="flex items-center gap-3 rounded-card border border-[color:rgba(139,124,246,0.4)] bg-[var(--bg-surface)] p-4 transition-colors hover:border-[var(--accent-violet)]"
+              >
+                <Brain size={18} className="shrink-0 text-[var(--accent-violet)]" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm text-[var(--text-primary)]">Ask OSCAR</span>
+                  <span className="block text-xs text-[var(--text-secondary)]">
+                    Operational guidance from your objectives, skills and execution.
+                  </span>
+                </span>
+                <ArrowRight size={15} className="shrink-0 text-[var(--text-secondary)]" />
+              </Link>
             </section>
           )}
         </>
