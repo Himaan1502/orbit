@@ -19,9 +19,12 @@ import com.orbit.platform.skills.service.SkillService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -58,6 +61,74 @@ public class CareerReadinessService {
     }
 
     public record NamedReadiness(UUID careerTargetId, String targetName, Readiness readiness) {
+    }
+
+    /** One point on the readiness trend (ADR-027 §2). */
+    public record ReadinessPoint(Instant at, double overall, double skillCapability, int assessedSkillCount) {
+    }
+
+    public record NamedTrend(UUID careerTargetId, String targetName, List<ReadinessPoint> points) {
+    }
+
+    /**
+     * The readiness trend for a target over {@code [from, to]} (ADR-027 §2).
+     * Sampled at each assessment the user made for one of the target's skills
+     * (plus the range endpoints); at each instant the <em>existing</em>
+     * {@link CareerReadinessCalculator} is re-run with the as-of capability
+     * (exact), evidence strength (by {@code created_at}) and project coverage
+     * (by {@code completed_at}). A step function between samples.
+     */
+    @Transactional(readOnly = true)
+    public NamedTrend readinessTrend(UUID explicitTargetId, Instant from, Instant to) {
+        UUID userId = currentUser.currentUserId();
+        CareerTarget target = explicitTargetId != null
+                ? targets.getMine(explicitTargetId).target()
+                : targets.primaryOf(userId);
+        if (target == null) {
+            throw ApiException.notFound("No career target set.");
+        }
+
+        List<CareerTargetSkill> cts = targets.getMine(target.getId()).skills();
+        Set<UUID> targetSkillIds = cts.stream().map(CareerTargetSkill::getSkillId).collect(Collectors.toSet());
+        Map<UUID, String> names = skills.findAll().stream()
+                .collect(Collectors.toMap(Skill::getId, Skill::getCanonicalName));
+        List<TargetSkill> targetSkills = cts.stream()
+                .map(s -> new TargetSkill(s.getSkillId(), names.getOrDefault(s.getSkillId(), "?"),
+                        s.importanceValue(), s.interviewWeightValue()))
+                .toList();
+
+        // sample instants: every assessment of a target skill inside the window, plus both endpoints
+        TreeSet<Instant> instants = new TreeSet<>();
+        instants.add(to);
+        for (SkillAssessment a : skillService.assessmentHistory(userId)) {
+            if (targetSkillIds.contains(a.getSkillId())
+                    && !a.getAssessedAt().isBefore(from) && !a.getAssessedAt().isAfter(to)) {
+                instants.add(a.getAssessedAt());
+            }
+        }
+        if (instants.size() == 1) {
+            instants.add(from);   // no events in-window — a flat two-point line
+        }
+
+        var graph = graphService.graph();
+        List<ReadinessPoint> points = new ArrayList<>();
+        for (Instant t : instants) {
+            Map<UUID, Capability> capabilities = skillService.latestBySkillAsOf(userId, t).entrySet().stream()
+                    .filter(e -> targetSkillIds.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey,
+                            e -> new Capability(e.getValue().overall(), e.getValue().dimensions().interview())));
+            Map<UUID, Double> evidence = evidenceSignals.strengthBySkillAsOf(userId, targetSkillIds, t);
+            Map<UUID, Double> project = projectCoverage.demonstratedBySkillAsOf(userId, targetSkillIds, t);
+
+            Readiness r = CareerReadinessCalculator.compute(
+                    targetSkills, capabilities, evidence, project, graph, properties);
+            double capComponent = r.componentBreakdown().stream()
+                    .filter(c -> "skillCapability".equals(c.component()))
+                    .map(c -> c.value() == null ? 0.0 : c.value())
+                    .findFirst().orElse(0.0);
+            points.add(new ReadinessPoint(t, r.overall(), capComponent, r.assessedSkillCount()));
+        }
+        return new NamedTrend(target.getId(), target.getName(), points);
     }
 
     @Transactional(readOnly = true)

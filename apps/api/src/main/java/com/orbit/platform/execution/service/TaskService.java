@@ -109,7 +109,7 @@ public class TaskService {
         if (req.status() != null && !req.status().isBlank()) {
             TaskStatus next = TaskStatus.fromValue(req.status());
             boolean wasTerminal = task.getStatus().isTerminal();
-            task.setStatus(next);
+            task.changeStatus(next, clock.instant());
             if (wasTerminal && !next.isTerminal()) {
                 task.setCompletedAt(null);
             }

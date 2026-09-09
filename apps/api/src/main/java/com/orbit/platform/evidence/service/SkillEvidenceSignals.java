@@ -27,4 +27,7 @@ public interface SkillEvidenceSignals {
 
     /** {@code skillId → Σ contribution_weight} (capped 1.0) for readiness {@code evidenceCoverage} (ADR-026 §2). */
     Map<UUID, Double> strengthBySkill(UUID userId, Collection<UUID> skillIds);
+
+    /** As {@link #strengthBySkill} but only counting evidence logged at or before {@code asOf} (ADR-027 §2, readiness trend). */
+    Map<UUID, Double> strengthBySkillAsOf(UUID userId, Collection<UUID> skillIds, java.time.Instant asOf);
 }

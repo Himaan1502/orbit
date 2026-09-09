@@ -22,11 +22,22 @@ class ProjectSkillCoverageImpl implements ProjectSkillCoverage {
     @Override
     @Transactional(readOnly = true)
     public Map<UUID, Double> demonstratedBySkill(UUID userId, Collection<UUID> skillIds) {
+        return cap(projectSkills.findForUserAndSkills(userId, skillIds), skillIds);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, Double> demonstratedBySkillAsOf(UUID userId, Collection<UUID> skillIds,
+                                                     java.time.Instant asOf) {
+        return cap(projectSkills.findForUserAndSkillsCompletedBy(userId, skillIds, asOf), skillIds);
+    }
+
+    private static Map<UUID, Double> cap(java.util.List<ProjectSkill> rows, Collection<UUID> skillIds) {
         if (skillIds == null || skillIds.isEmpty()) {
             return Map.of();
         }
         Map<UUID, Double> sum = new HashMap<>();
-        for (ProjectSkill ps : projectSkills.findForUserAndSkills(userId, skillIds)) {
+        for (ProjectSkill ps : rows) {
             sum.merge(ps.getSkillId(), ps.demonstratedValue(), Double::sum);
         }
         sum.replaceAll((k, v) -> Math.min(1.0, v));

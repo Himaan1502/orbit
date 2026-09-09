@@ -63,6 +63,19 @@ class EvidenceSignalsImpl implements SkillEvidenceSignals, ProjectSkillEvidenceS
 
     @Override
     @Transactional(readOnly = true)
+    public Map<UUID, Double> strengthBySkillAsOf(UUID userId, Collection<UUID> skillIds, java.time.Instant asOf) {
+        if (skillIds == null || skillIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Double> sum = new HashMap<>();
+        for (var row : skillEvidence.strengthBySkillAsOf(userId, skillIds, asOf)) {
+            sum.put(row.getSkillId(), Math.min(1.0, row.getWeight().doubleValue()));
+        }
+        return sum;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public double strength(UUID projectId, UUID skillId) {
         BigDecimal sum = skillEvidence.sumWeightForProjectAndSkill(projectId, skillId);
         return Math.min(1.0, sum == null ? 0 : sum.doubleValue());

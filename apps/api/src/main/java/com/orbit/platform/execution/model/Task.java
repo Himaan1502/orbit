@@ -70,6 +70,10 @@ public class Task extends BaseEntity {
     @Column(name = "completed_at")
     private Instant completedAt;
 
+    /** Set while the task is {@code blocked}, cleared when it leaves (ADR-027 §5). */
+    @Column(name = "blocked_since")
+    private Instant blockedSince;
+
     public static Task create(UUID userId, UUID objectiveId, UUID milestoneId, UUID skillId, UUID projectId,
                               String title, String description, Integer estimatedMinutes, Instant dueAt) {
         Task t = new Task();
@@ -91,14 +95,26 @@ public class Task extends BaseEntity {
         return estimatedMinutes != null && estimatedMinutes > 0 ? estimatedMinutes : defaultMinutes;
     }
 
+    /** Apply a status change, maintaining {@link #blockedSince} (ADR-027 §5). */
+    public void changeStatus(TaskStatus next, Instant now) {
+        if (next == TaskStatus.BLOCKED && blockedSince == null) {
+            this.blockedSince = now;
+        } else if (next != TaskStatus.BLOCKED) {
+            this.blockedSince = null;
+        }
+        this.status = next;
+    }
+
     public void markComplete(Instant when) {
         this.status = TaskStatus.DONE;
         this.completedAt = when;
+        this.blockedSince = null;
     }
 
     public void reopen() {
         this.status = TaskStatus.TODO;
         this.completedAt = null;
+        this.blockedSince = null;
     }
 
     public void applyPriority(PriorityReason reason) {

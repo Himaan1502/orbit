@@ -63,11 +63,30 @@ public interface SkillEvidenceRepository extends JpaRepository<SkillEvidence, Sk
     java.math.BigDecimal sumWeightForProjectAndSkill(@Param("projectId") UUID projectId,
                                                      @Param("skillId") UUID skillId);
 
+    /** {@code skillId → Σ contribution_weight} for evidence the user had logged at or before {@code asOf} (ADR-027 §2). */
+    @Query("""
+            select se.skillId as skillId, coalesce(sum(se.contributionWeight), 0) as weight
+            from SkillEvidence se
+              join Evidence e on e.id = se.evidenceId
+            where e.userId = :userId and e.deletedAt is null and e.createdAt <= :asOf
+              and se.skillId in :skillIds
+            group by se.skillId
+            """)
+    List<SkillStrengthRow> strengthBySkillAsOf(@Param("userId") UUID userId,
+                                               @Param("skillIds") Collection<UUID> skillIds,
+                                               @Param("asOf") java.time.Instant asOf);
+
     interface SkillEvidenceRow {
         UUID getSkillId();
 
         java.math.BigDecimal getWeight();
 
         com.orbit.platform.evidence.model.EvidenceType getType();
+    }
+
+    interface SkillStrengthRow {
+        UUID getSkillId();
+
+        java.math.BigDecimal getWeight();
     }
 }

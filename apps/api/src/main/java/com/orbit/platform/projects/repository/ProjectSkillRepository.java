@@ -38,4 +38,19 @@ public interface ProjectSkillRepository extends JpaRepository<ProjectSkill, Proj
             """)
     List<ProjectSkill> findForUserAndSkills(@Param("userId") UUID userId,
                                             @Param("skillIds") Collection<UUID> skillIds);
+
+    /**
+     * Skill rows for the caller's projects completed at or before {@code asOf}
+     * (ADR-027 §2, readiness trend). {@code completed_at} is only set while a
+     * project is completed — cleared on re-open — so it alone gates completion.
+     */
+    @Query("""
+            select ps from ProjectSkill ps
+              join Project p on p.id = ps.projectId
+            where p.userId = :userId and p.deletedAt is null and ps.skillId in :skillIds
+              and p.completedAt is not null and p.completedAt <= :asOf
+            """)
+    List<ProjectSkill> findForUserAndSkillsCompletedBy(@Param("userId") UUID userId,
+                                                       @Param("skillIds") Collection<UUID> skillIds,
+                                                       @Param("asOf") java.time.Instant asOf);
 }

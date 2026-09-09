@@ -14,4 +14,7 @@ public interface DailyPlanRepository extends JpaRepository<DailyPlan, UUID> {
     Optional<DailyPlan> findByUserIdAndPlanDate(UUID userId, LocalDate planDate);
 
     Optional<DailyPlan> findByIdAndUserId(UUID id, UUID userId);
+
+    java.util.List<DailyPlan> findByUserIdAndPlanDateBetweenOrderByPlanDateAsc(
+            UUID userId, LocalDate from, LocalDate to);
 }

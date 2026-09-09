@@ -101,10 +101,27 @@ public class SkillService {
 
     @Transactional(readOnly = true)
     public Map<UUID, SkillAssessment> latestBySkill(UUID userId) {
+        return latestBySkillAsOf(userId, null);
+    }
+
+    /**
+     * Latest assessment per skill as of {@code asOf} ({@code null} = now) — the
+     * append-only {@code skill_assessments} history makes this exact (ADR-027).
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, SkillAssessment> latestBySkillAsOf(UUID userId, java.time.Instant asOf) {
         Map<UUID, SkillAssessment> latest = new java.util.HashMap<>();
         for (SkillAssessment a : assessments.findByUserIdOrderByAssessedAtDesc(userId)) {
-            latest.putIfAbsent(a.getSkillId(), a);   // list is newest-first
+            if (asOf == null || !a.getAssessedAt().isAfter(asOf)) {
+                latest.putIfAbsent(a.getSkillId(), a);   // list is newest-first
+            }
         }
         return latest;
+    }
+
+    /** Every assessment the user has made, newest first — the skill-progression series (ADR-027 §2). */
+    @Transactional(readOnly = true)
+    public List<SkillAssessment> assessmentHistory(UUID userId) {
+        return assessments.findByUserIdOrderByAssessedAtDesc(userId);
     }
 }
