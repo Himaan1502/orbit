@@ -12,6 +12,16 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 /**
+ * Extra clarifications shown only when the factor is actually `computed` — for
+ * factors a user might otherwise mistake for a bug when comparing to another
+ * screen. Not from the API; static UI copy.
+ */
+const FACTOR_NOTE: Record<string, string> = {
+  dependencyImpact:
+    "Not the same number as the Career page's leverage / unlocks: this is the share of your whole target's skills that this one gates — an unweighted fraction over every target skill, not importance-weighted or normalised.",
+};
+
+/**
  * Renders the Priority Engine's explanation (ADR-014 §4, PRD §6 "must be
  * explainable to the user"). Nothing here is generated text — it is the exact
  * factor breakdown the API returned.
@@ -47,6 +57,11 @@ export function WhyThis({ reason }: { reason: PriorityReason | null }) {
                   {SOURCE_LABEL[f.source] ?? f.source}
                 </span>
                 <span className="block text-[10px] text-[var(--text-secondary)]">{f.detail}</span>
+                {f.source === 'computed' && FACTOR_NOTE[name] && (
+                  <span className="mt-0.5 block text-[10px] italic text-[var(--text-secondary)]">
+                    {FACTOR_NOTE[name]}
+                  </span>
+                )}
               </span>
               <span className="shrink-0 font-mono text-[var(--text-secondary)]">
                 {f.value.toFixed(2)} × {f.weight.toFixed(2)} ={' '}
