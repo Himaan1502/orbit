@@ -1,12 +1,42 @@
 # Milestone 8a — Deployment Scope & Runbook
 
-**Status:** Draft for sign-off. Paired with
-[ADR-035](../adr/ADR-035-single-vm-oci-deployment-topology.md). **Nothing here
-has been executed.** No OCI resource has been created; the local stack has not
-been touched.
+**Status:** In progress. Paired with
+[ADR-035](../adr/ADR-035-single-vm-oci-deployment-topology.md). Phase 0 done +
+verified; Phase 1 satisfied; **Phase 2 Resource Group A provisioned 2026-09-10**
+(networking only — all $0). Phases B/C/D pending per-resource approval.
 
 **Goal:** ORBIT always-on at `https://web.<vm-ip>.nip.io`, reachable from any
-device, real TLS, existing pilot account + all history intact, $0/month.
+device, real TLS, ~~existing pilot account + all history intact~~ (lost
+2026-09-10, see [incidents.md](incidents.md) — fresh account), $0/month.
+
+---
+
+## Provisioned OCI resources (ap-mumbai-1, compartment `orbit`)
+
+| Resource | OCID | Created | Cost |
+|---|---|---|---|
+| Compartment `orbit` | `ocid1.compartment.oc1..aaaaaaaawybixrcjnbtrvhxgbzf5s3nasvo232evsp4rcdm2fu6hojvp4yiq` | 2026-09-10 | $0 |
+| VCN `orbit-vcn` (10.0.0.0/16) | `ocid1.vcn.oc1.ap-mumbai-1.amaaaaaaicfyggyahbdsmxyv5d3kyegazobnscyejgatxd6ezh5bhzbdajiq` | 2026-09-10 | $0 |
+| Internet GW `orbit-igw` | `ocid1.internetgateway.oc1.ap-mumbai-1.aaaaaaaaotlgzwtodobkr4tzioogduistz3we4iatvmtan7r2ztx4ugsvfaa` | 2026-09-10 | $0 |
+| Default route table (0.0.0.0/0 → IGW) | `ocid1.routetable.oc1.ap-mumbai-1.aaaaaaaauepcmhqanmytxjuqeodn3otjdq63h5p3wwtdxcfpsjlgl2wxyjmq` | 2026-09-10 | $0 |
+| Security list `orbit-sl` (ingress 22/80/443) | `ocid1.securitylist.oc1.ap-mumbai-1.aaaaaaaadimo3f27uhbqifj4rsrltsek5sz32i6346hkgiuhc2fobn6chjha` | 2026-09-10 | $0 |
+| Public subnet `orbit-subnet` (10.0.0.0/24, regional) | `ocid1.subnet.oc1.ap-mumbai-1.aaaaaaaabinpuds75lxpttc2eqif6g7f5ghshxb33gfq6ef4vquanenry2mq` | 2026-09-10 | $0 |
+| AD | `LJCm:AP-MUMBAI-1-AD-1` | — | — |
+| Reserved public IP (Group B) | _pending_ | | |
+| Compute `orbit-vm` (Group C) | _pending_ | | |
+| Object Storage bucket + dynamic group + policy (Group D) | _pending_ | | |
+
+Tenancy `orbit-platform` (`OCID …aaaaaaaa27ytjp7jyreoaslgtv4blrjwoxf3sxdjnmkcxt5rvioc7ijyv77a`,
+home region BOM). **Not** a locked Always Free tenancy — paid shapes are
+available (`standard-e4-core-count` availability = 16), so there is no
+account-level spend guard; the discipline is entirely in provisioning only the
+Always-Free-native resources above. Every Phase-2 resource survives a
+trial→PAYG/Always-Free transition (none depends on trial credit). Exact
+trial-vs-PAYG label: to be filled from the console.
+
+**Teardown (total abandon):** `oci iam compartment delete --compartment-id
+<orbit-compartment>` removes everything above in one call once the compute /
+bucket are gone; local ORBIT is unaffected.
 
 ---
 

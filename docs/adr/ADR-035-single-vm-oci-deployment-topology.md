@@ -326,14 +326,19 @@ for CLI provisioning only. Until phase 2, deploys are a one-line manual SSH.
 
 ## Open Questions for Sign-Off
 
-1. **The tenancy is not Always-Free-locked** (PAYG-shaped limits). There is no
-   account-level block on creating billable resources — M8a's discipline is to
-   provision exactly the 2 OCPU / 12 GB A1 + 120 GB boot + reserved IP + one
-   bucket, all within Always Free, and nothing else. Is the tenancy an upgraded
-   PAYG account, or a 30-day trial with credits? (Changes what happens at day
-   30.) — **OUTSTANDING: product owner confirming via Billing & Cost Management
-   before Phase 0. This is the one item to double-confirm given no enforced
-   cap.**
+1. **The tenancy is not Always-Free-locked.** Confirmed via CLI 2026-09-10:
+   `oci limits resource-availability get … standard-e4-core-count` →
+   `available: 16` (a paid-only shape; a locked Always Free tenancy shows 0).
+   So it is PAYG or a trial-in-progress — the CLI can't split those (the
+   `osub-subscription` commands are non-functional in this CLI build), and the
+   exact label was not captured (the plain value came through as an unfilled
+   template placeholder on four attempts). **It does not gate the plan:** every
+   Phase-2 resource (VCN stack, reserved IP, 2 OCPU/12 GB A1, 120 GB boot,
+   20 GB-class bucket) is Always-Free-native and survives a trial→PAYG or
+   trial→Always-Free transition — none depends on trial credit. The residual
+   risk (no account-level spend guard) is handled by per-resource product-owner
+   approval of each resource-creating `oci` command. Fill the literal
+   PAYG/Trial label here when available.
 2. **Tech Arch §22 deviation** — self-hosted Postgres/Redis containers instead
    of managed services (§7). — **APPROVED 2026-09-10**: §21 minimal-
    infrastructure wins over §22's "managed" preference for a single-user
