@@ -71,7 +71,7 @@ never written up. ADR-035 is the first.
 | No free native arm64 CI runners for private repos | GitHub's free `ubuntu-24.04-arm` hosted runners are **public-repo only**; private repos need a paid larger-runner plan. arm64 image builds on the Free plan must use QEMU on the amd64 runner, or the split-build trick in §3. |
 | `RegisteredClientSeeder` **upserts** the `orbit-web` client from env on every startup | `apps/auth/.../config/RegisteredClientSeeder.java` — `clients.save(webClient)` reuses the existing row id and rewrites redirect URI + secret from `WEB_REDIRECT_URI` / `WEB_CLIENT_SECRET`. **The redirect-URI / client-secret change on migration is automatic — no manual SQL.** |
 | `apps/web` is already fully parameterised for split-horizon HTTPS | `src/lib/auth/config.ts` — `OIDC_ISSUER_URI` (browser), `OIDC_INTERNAL_ISSUER_URI` (container↔container), `WEB_SECURE_COOKIES` override, `WEB_PUBLIC_URL`. |
-| `apps/api` prod profile forces OIDC **discovery** | `application-prod.yml` → `issuer-uri: ${OIDC_ISSUER_URI}` (not `jwk-set-uri`). Needs the public auth hostname resolvable from inside the api container — solved with a compose `extra_hosts` pin to the Caddy container (§5), a wiring detail not an architecture choice. |
+| `apps/api` prod profile *had* forced OIDC **discovery** | Original `application-prod.yml` set only `issuer-uri`. Phase 0 changed it to set **both** `jwk-set-uri` (internal) and `issuer-uri` — Spring Boot 3.2.5 then skips discovery and uses `issuer-uri` for claim validation only (§5). No public-hostname resolution from inside any container. |
 | `apps/auth` has **no** `application-prod.yml` | Only `application.yml` + `application-dev.yml`. It already reads every needed knob from env (per `docker-compose.yml`). A tiny `application-prod.yml` (hide health details, quieter logging) is a small build task. |
 | `nip.io` is **not** on the Public Suffix List | Long-open PSL request issue. Good: `<ip>.nip.io` is the eTLD+1, so `web.` / `api.` / `auth.` are **same-site** → `SameSite=Lax` on `orbit_session` survives the OAuth redirect. Bad: all `*.nip.io` share one Let's Encrypt rate-limit bucket — issuance can transiently fail (§Open Questions, with fallbacks). |
 | Docker Desktop is currently **unresponsive** on the owner's machine | `docker version` / `docker ps` hang → killed at timeout. Known recurring issue ([[orbit-docker-desktop-flaky]]). It must be healthy before the backup/migration phase (which needs `pg_dump` from the running `orbit-db`). Not a blocker for this ADR. |
@@ -169,13 +169,20 @@ Caddy the ceiling is ~3–4 GB against 12 GB available. Comfortable.
   (`orbit-api` → `http://orbit-auth:9000/oauth2/jwks`, `orbit-web` →
   `http://orbit-api:8080`). No internal traffic traverses Caddy or the public
   IP.
-- **Issuer.** `OIDC_ISSUER_URI = https://auth.<ip>.nip.io` everywhere (the
-  `iss` claim the browser and the API both see). Because `apps/api`'s prod
-  profile does OIDC *discovery* against that URL, the api container gets an
-  `extra_hosts: ["auth.<ip>.nip.io:<caddy-net-ip>"]` pin so it resolves the
-  public hostname to Caddy on the internal network (Caddy already serves the
-  valid cert for that name). Alternative wiring (internal `jwk-set-uri` + a
-  standalone issuer-claim validator) is the fallback if the pin is awkward.
+- **Issuer.** `OIDC_ISSUER_URI = https://auth.<ip>.nip.io` everywhere — it is
+  only the `iss` claim string that the browser and the API compare against.
+  **No container ever resolves the public auth hostname.** `apps/api` validates
+  RS256 signatures against `http://orbit-auth:9000/oauth2/jwks` on the internal
+  network and, because Spring Boot skips OIDC discovery when `jwk-set-uri` is
+  set, uses `issuer-uri` purely to add the issuer-claim validator (string
+  compare, no network). `apps/web` calls the token/JWKS endpoints via
+  `OIDC_INTERNAL_ISSUER_URI = http://orbit-auth:9000` and validates the
+  id-token `iss` against the public URL by string compare. So the whole
+  split-horizon is configuration only — no `extra_hosts`, no network alias, no
+  discovery round-trip, no startup race. `application-prod.yml` (api) sets both
+  `jwk-set-uri` and `issuer-uri`; verified against Spring Boot 3.2.5's
+  `OAuth2ResourceServerJwtConfiguration` (jwk-set-uri present ⇒ no discovery,
+  issuer-uri present ⇒ `JwtValidators.createDefaultWithIssuer`).
 - **Cookies.** `WEB_SECURE_COOKIES=true` (real HTTPS). `SameSite=Lax` is
   retained and works — `nip.io` is not a public suffix, so the three
   subdomains are same-site (verified §Findings).
