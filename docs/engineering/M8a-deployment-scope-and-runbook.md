@@ -104,10 +104,20 @@ verification output before the next starts (milestone-process rule).
 8. `docs/engineering/deferred-items.md` + `CLAUDE.md` status table updated when
    the milestone closes.
 
-**Verify:** `docker compose -f docker-compose.yml -f docker-compose.prod.yml
-config` parses; CI green on the branch; `docker buildx` produces an
-`linux/arm64` image locally (`docker buildx build --platform linux/arm64`).
-Merge to `main` → CI publishes the first arm64 images to GHCR.
+**Verify:**
+
+- ✅ **2026-09-10** — `docker compose -f docker-compose.yml -f
+  docker-compose.prod.yml config` merges clean: `ports:` closed for
+  db/redis/auth/api/web (only Caddy publishes 80/443), GHCR image refs, no
+  `build:`, `SPRING_PROFILES_ACTIVE=prod`, `WEB_SECURE_COOKIES=true`, heap
+  caps, and the `postgres_data` volume identity unchanged
+  (`name: orbit_postgres_data`).
+- ✅ **2026-09-10** — `docker buildx build --platform linux/arm64` builds all
+  three images; result arch confirmed `linux/arm64`. A `--no-cache` cold build
+  of `orbit-auth` ran `./gradlew bootJar` in **28s** (native amd64 build stage,
+  not emulated arm64 — the `--platform=$BUILDPLATFORM` split works).
+- ⏳ CI green on the branch — pending push.
+- Merge to `main` → CI publishes the first arm64 images to GHCR.
 
 ### Phase 1 — Local backup (BEFORE any migration or infra touching data)
 
