@@ -13,9 +13,8 @@ import java.util.List;
 
 /**
  * Google Gemini via AI Studio (ADR-031 §1) — the primary provider. Native
- * {@code generateContent} API (not the OpenAI-compat layer, which lags on tool
- * calling). Key is sent as {@code x-goog-api-key}. Its ~1M-token window absorbs
- * the full context bundle every turn (ADR-032 §2).
+ * {@code generateContent} / {@code streamGenerateContent} API (not the
+ * OpenAI-compat layer, which lags on tool calling). Key as {@code x-goog-api-key}.
  */
 @Component
 public class GeminiProvider extends HttpAiProviderSupport implements AiProvider {
@@ -44,38 +43,49 @@ public class GeminiProvider extends HttpAiProviderSupport implements AiProvider 
 
     @Override
     public AiCompletion complete(AiRequest request) {
-        ObjectNode body = json.createObjectNode();
+        JsonNode resp = post(
+                "/v1beta/models/" + props.gemini().model() + ":generateContent",
+                requestBody(request).toString(),
+                h -> h.header("x-goog-api-key", props.gemini().apiKey()));
+        return parseWhole(resp);
+    }
 
+    @Override
+    public AiCompletion completeStream(AiRequest request, TokenSink sink) {
+        Acc acc = new Acc();
+        postStream(
+                "/v1beta/models/" + props.gemini().model() + ":streamGenerateContent?alt=sse",
+                requestBody(request).toString(),
+                h -> h.header("x-goog-api-key", props.gemini().apiKey()),
+                payload -> acc.frame(readTreeSafe(payload), sink));
+        return acc.toCompletion();
+    }
+
+    // ---------------------------------------------------------------------
+
+    private ObjectNode requestBody(AiRequest request) {
+        ObjectNode body = json.createObjectNode();
         body.set("systemInstruction", json.createObjectNode()
                 .set("parts", json.createArrayNode().add(json.createObjectNode()
                         .put("text", request.systemPrompt()))));
-
         body.set("contents", contents(request.history()));
 
         if (request.tools() != null && !request.tools().isEmpty()) {
             ArrayNode decls = json.createArrayNode();
             for (ToolSpec t : request.tools()) {
-                ObjectNode d = json.createObjectNode();
-                d.put("name", t.name());
-                d.put("description", t.description());
-                d.set("parameters", readSchema(t.parametersJson()));
-                decls.add(d);
+                decls.add(json.createObjectNode()
+                        .put("name", t.name())
+                        .put("description", t.description())
+                        .set("parameters", readSchema(t.parametersJson())));
             }
             body.set("tools", json.createArrayNode().add(
                     json.createObjectNode().set("functionDeclarations", decls)));
         }
 
-        ObjectNode gen = json.createObjectNode();
-        gen.put("maxOutputTokens", request.maxOutputTokens());
-        gen.put("temperature", request.temperature());
-        body.set("generationConfig", gen);
-
-        JsonNode resp = post(
-                "/v1beta/models/" + props.gemini().model() + ":generateContent",
-                body.toString(),
-                h -> h.set("x-goog-api-key", props.gemini().apiKey()));
-
-        return parse(resp);
+        body.set("generationConfig", json.createObjectNode()
+                .put("maxOutputTokens", request.maxOutputTokens())
+                .put("temperature", request.temperature()));
+        return body;
     }
 
     private ArrayNode contents(List<ChatItem> history) {
@@ -85,30 +95,23 @@ public class GeminiProvider extends HttpAiProviderSupport implements AiProvider 
                 case ChatItem.UserText u -> contents.add(textContent("user", u.text()));
                 case ChatItem.ModelText m -> contents.add(textContent("model", m.text()));
                 case ChatItem.ModelToolCalls tc -> {
-                    ObjectNode c = json.createObjectNode();
-                    c.put("role", "model");
                     ArrayNode parts = json.createArrayNode();
                     for (ChatItem.ToolCall call : tc.calls()) {
-                        ObjectNode fc = json.createObjectNode();
-                        fc.put("name", call.name());
-                        fc.set("args", readArgs(call.argumentsJson()));
-                        parts.add(json.createObjectNode().set("functionCall", fc));
+                        parts.add(json.createObjectNode().set("functionCall", json.createObjectNode()
+                                .put("name", call.name())
+                                .set("args", readTreeSafe(call.argumentsJson()))));
                     }
-                    c.set("parts", parts);
-                    contents.add(c);
+                    contents.add(json.createObjectNode().put("role", "model").set("parts", parts));
                 }
                 case ChatItem.ToolResults tr -> {
-                    ObjectNode c = json.createObjectNode();
-                    c.put("role", "user");
                     ArrayNode parts = json.createArrayNode();
                     for (ChatItem.ToolResult r : tr.results()) {
-                        ObjectNode fr = json.createObjectNode();
-                        fr.put("name", r.name());
-                        fr.set("response", json.createObjectNode().set("result", readArgs(r.contentJson())));
-                        parts.add(json.createObjectNode().set("functionResponse", fr));
+                        parts.add(json.createObjectNode().set("functionResponse", json.createObjectNode()
+                                .put("name", r.name())
+                                .set("response", json.createObjectNode()
+                                        .set("result", readTreeSafe(r.contentJson())))));
                     }
-                    c.set("parts", parts);
-                    contents.add(c);
+                    contents.add(json.createObjectNode().put("role", "user").set("parts", parts));
                 }
                 default -> { }
             }
@@ -117,55 +120,60 @@ public class GeminiProvider extends HttpAiProviderSupport implements AiProvider 
     }
 
     private ObjectNode textContent(String role, String text) {
-        ObjectNode c = json.createObjectNode();
-        c.put("role", role);
-        c.set("parts", json.createArrayNode().add(json.createObjectNode().put("text", text)));
-        return c;
+        return json.createObjectNode().put("role", role).set("parts",
+                json.createArrayNode().add(json.createObjectNode().put("text", text)));
     }
 
-    private AiCompletion parse(JsonNode resp) {
-        JsonNode candidates = resp.path("candidates");
-        StringBuilder text = new StringBuilder();
-        List<ChatItem.ToolCall> calls = new ArrayList<>();
-        String finish = null;
+    private AiCompletion parseWhole(JsonNode resp) {
+        Acc acc = new Acc();
+        acc.frame(resp, TokenSink.DISCARD);
+        return acc.toCompletion();
+    }
 
-        if (candidates.isArray() && !candidates.isEmpty()) {
-            JsonNode cand = candidates.get(0);
-            finish = cand.path("finishReason").asText(null);
-            int idx = 0;
-            for (JsonNode part : cand.path("content").path("parts")) {
-                if (part.hasNonNull("text")) {
-                    text.append(part.get("text").asText());
-                } else if (part.has("functionCall")) {
-                    JsonNode fc = part.get("functionCall");
-                    String fname = fc.path("name").asText();
-                    String args = fc.has("args") ? fc.get("args").toString() : "{}";
-                    calls.add(new ChatItem.ToolCall(fname + "#" + idx++, fname, args));
+    private JsonNode readSchema(String raw) {
+        return readTreeSafe(raw == null || raw.isBlank() ? "{\"type\":\"object\"}" : raw);
+    }
+
+    /** Accumulates streamed (or whole) Gemini {@code GenerateContentResponse} chunks. */
+    private final class Acc {
+        private final StringBuilder text = new StringBuilder();
+        private final List<ChatItem.ToolCall> calls = new ArrayList<>();
+        private int promptTokens;
+        private int completionTokens;
+        private String finish;
+
+        void frame(JsonNode chunk, TokenSink sink) {
+            JsonNode candidates = chunk.path("candidates");
+            if (candidates.isArray() && !candidates.isEmpty()) {
+                JsonNode cand = candidates.get(0);
+                if (cand.hasNonNull("finishReason")) {
+                    finish = cand.get("finishReason").asText();
                 }
+                for (JsonNode part : cand.path("content").path("parts")) {
+                    if (part.hasNonNull("text")) {
+                        String delta = part.get("text").asText();
+                        text.append(delta);
+                        if (!delta.isEmpty()) {
+                            sink.onToken(delta);
+                        }
+                    } else if (part.has("functionCall")) {
+                        JsonNode fc = part.get("functionCall");
+                        String fname = fc.path("name").asText();
+                        calls.add(new ChatItem.ToolCall(fname + "#" + calls.size(), fname,
+                                fc.has("args") ? fc.get("args").toString() : "{}"));
+                    }
+                }
+            }
+            JsonNode usage = chunk.path("usageMetadata");
+            if (usage.isObject()) {
+                promptTokens = usage.path("promptTokenCount").asInt(promptTokens);
+                completionTokens = usage.path("candidatesTokenCount").asInt(completionTokens);
             }
         }
 
-        JsonNode usage = resp.path("usageMetadata");
-        TokenUsage tokens = new TokenUsage(
-                usage.path("promptTokenCount").asInt(0),
-                usage.path("candidatesTokenCount").asInt(0));
-
-        return new AiCompletion(text.toString(), calls, tokens, finish);
-    }
-
-    private JsonNode readSchema(String schemaJson) {
-        try {
-            return json.readTree(schemaJson == null || schemaJson.isBlank() ? "{\"type\":\"object\"}" : schemaJson);
-        } catch (com.fasterxml.jackson.core.JacksonException e) {
-            return json.createObjectNode().put("type", "object");
-        }
-    }
-
-    private JsonNode readArgs(String argsJson) {
-        try {
-            return json.readTree(argsJson == null || argsJson.isBlank() ? "{}" : argsJson);
-        } catch (com.fasterxml.jackson.core.JacksonException e) {
-            return json.createObjectNode().put("_raw", String.valueOf(argsJson));
+        AiCompletion toCompletion() {
+            return new AiCompletion(text.toString(), calls,
+                    new TokenUsage(promptTokens, completionTokens), finish);
         }
     }
 }

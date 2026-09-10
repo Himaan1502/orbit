@@ -53,6 +53,14 @@ class OscarConversationIntegrationTest extends AbstractApiIntegrationTest {
     }
 
     @Test
+    void contextualNudgeIsUnavailableWithNoKey() throws Exception {
+        mvc.perform(get("/api/v1/oscar/nudge").param("surface", "today").with(user(UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("unavailable"))
+                .andExpect(jsonPath("$.data.card").doesNotExist());
+    }
+
+    @Test
     void aTurnDegradesGracefullyAndPersistsNothingWhenOscarIsDisabled() throws Exception {
         var u = user(UUID.randomUUID());
         String body = mvc.perform(post("/api/v1/oscar/conversations").with(u)

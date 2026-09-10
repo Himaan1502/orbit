@@ -102,13 +102,17 @@ this file from the relevant comment.
 
 ### Not in scope for M7 — still open
 
-- **Streaming responses (SSE).** M7 is request/response with a "thinking…"
-  state. Both providers support streaming; deferred (ADR-031 §Alternatives 4).
+- ~~**Streaming responses (SSE).**~~ — **done in the pre-M8 pass**
+  ([ADR-033](../adr/ADR-033-oscar-streaming.md)): SSE via MVC `SseEmitter`,
+  `oscar-v2` prose-then-sentinel format, provider adapters on the JDK
+  `HttpClient`, fail-over only before the first token.
+- ~~**Contextual recommendation cards** on Today / objective detail~~ — **done
+  in the pre-M8 pass** ([ADR-034](../adr/ADR-034-oscar-contextual-cards.md)):
+  `GET /oscar/nudge`, Redis-fingerprint-cached, own hourly budget,
+  silent-by-default. Skill / roadmap / Career surfaces still deferred.
 - **OSCAR-narrated Weekly Review.** `weekly_reviews.generated_by` still only ever
   written as `'system'`; `'oscar'` stays reserved. The rule-based composer is
   unchanged.
-- **Contextual recommendation cards** on Today / objective / skill detail views
-  (UX §25.1). M7 ships the `/oscar` view + one Command Center card only.
 - **Trusted automation mode** (Blueprint §27) — a genuinely separate future ADR,
   not a flag flip, precisely because OSCAR holds zero mutation capability today.
 - **Intent classification / selective context retrieval** (Blueprint §26
@@ -122,6 +126,42 @@ this file from the relevant comment.
   table is append-only. A `role='system'` note or a dedicated events table is a
   small future addition if history needs to show confirmed actions.
 - **SRE / Balance / Integration tools** in the registry.
+
+---
+
+## ✅ Closed in the pre-Milestone-8 pass (OSCAR streaming + contextual cards)
+
+- **SSE streaming** ([ADR-033](../adr/ADR-033-oscar-streaming.md)) — new
+  `/turns/stream` endpoint (`SseEmitter`), the non-streaming `/turns` retained.
+  `oscar-v2` prose-then-`===OSCAR-META===` format for **both** paths (`oscar-v1`
+  retired). Provider adapters moved off Spring `RestClient` to
+  `java.net.http.HttpClient` — no new dependency. Routing extracted to
+  `ProviderGateway` (shared with the blocking loop); **fail-over gated on the
+  first token**. Tool rounds surface as `status` events. BFF pipes
+  `text/event-stream` through unbuffered; the web client is native `fetch`
+  streaming with the non-streaming path as fallback. Tool-call history is
+  replayed as **prose**, not a structured `functionCall` (Groq null-arg + Gemini
+  `thought_signature` replay fragility).
+- **Contextual cards** ([ADR-034](../adr/ADR-034-oscar-contextual-cards.md)) —
+  `GET /oscar/nudge?surface=today|objective`. Single-shot, no tools,
+  **prose-only** (no mutation tools declared). `NudgeCache` on
+  `StringRedisTemplate` (first real API Redis use): fingerprint cache (12h) +
+  `orbit.ai.nudge-hourly-cap` budget isolated from the conversational cap.
+  Redis-down / provider-down / `SKIP` → silent. `<OscarNudge>` on `/today` +
+  `/objectives/[id]`, dismissible per surface per day.
+
+### Not in scope for the pre-M8 pass — still open
+
+- **Streaming for contextual nudges** — they are cached and behind a skeleton;
+  no felt benefit.
+- **Skill / roadmap / Career nudge surfaces.**
+- **A nudge `proposedAction`** — prose-only this pass; a deterministic
+  surface-state template (e.g. "objective has no tasks → propose the first")
+  is a small future add. The `NudgeCard.proposedAction` field already exists.
+- **Scheduled nudge pre-warm** (a `@Scheduled` job priming active users' cards).
+- **A mid-stream idle watchdog** — only a hard total-stream cap
+  (`readTimeoutMs * 2`) bounds a stalled provider stream today.
+- Any **SSE library** / **WebFlux migration**.
 
 ---
 

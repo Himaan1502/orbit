@@ -9,6 +9,7 @@ import { useTasks } from '@/features/execution/api';
 import { MilestoneSection } from '@/features/objectives/MilestoneSection';
 import { TaskForm } from '@/features/execution/TaskForm';
 import { TaskRow } from '@/features/execution/TaskRow';
+import { OscarNudge } from '@/features/oscar/OscarNudge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardLabel } from '@/components/ui/Card';
 import { Dialog } from '@/components/ui/Dialog';
@@ -45,6 +46,10 @@ export default function ObjectiveDetailPage({ params }: { params: { id: string }
       >
         <ArrowLeft size={14} /> Objectives
       </Link>
+
+      <div className="mb-4 empty:hidden">
+        <OscarNudge surface="objective" objectiveId={id} />
+      </div>
 
       <Card className="mb-6">
         <div className="flex items-start gap-5">

@@ -1,9 +1,8 @@
 # ADR-034: OSCAR Contextual Recommendation Cards
 
 ## Status
-Proposed — pre-Milestone-8 pass, alongside
-[ADR-033](ADR-033-oscar-streaming.md). Approved by the product owner 2026-09-10
-as the next work after M7.
+Accepted — approved by the product owner 2026-09-10, all six sign-off items.
+Pre-Milestone-8 pass, alongside [ADR-033](ADR-033-oscar-streaming.md).
 
 ## Date
 2026-09-10

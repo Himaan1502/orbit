@@ -8,6 +8,7 @@ import {
   useRegeneratePlan,
   useCompleteTask,
 } from '@/features/execution/api';
+import { OscarNudge } from '@/features/oscar/OscarNudge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -36,6 +37,10 @@ export default function TodayPage() {
         </p>
         <h1 className="text-2xl font-semibold text-[var(--text-primary)]">{heading}</h1>
       </header>
+
+      <div className="mb-5 empty:hidden">
+        <OscarNudge surface="today" />
+      </div>
 
       {isLoading && <LoadingState />}
       {isError && <ErrorState message="Could not load today’s plan." />}

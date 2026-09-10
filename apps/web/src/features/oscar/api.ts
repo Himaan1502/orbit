@@ -6,7 +6,9 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/http';
 import type {
   OscarConversation,
   OscarConversationDetail,
+  OscarNudge,
   OscarProposedAction,
+  OscarResponse,
   OscarStatus,
   OscarTurnResponse,
 } from '@/lib/api-types';
@@ -61,6 +63,112 @@ export function useSendTurn(conversationId: string) {
       qc.invalidateQueries({ queryKey: keys.conversation(conversationId) });
       qc.invalidateQueries({ queryKey: keys.conversations });
     },
+  });
+}
+
+export interface StreamHandlers {
+  status?: (text: string) => void;
+  token: (delta: string) => void;
+  proposedAction?: (action: OscarProposedAction) => void;
+  meta?: (response: OscarResponse) => void;
+  done?: (persisted: boolean, messageId: string) => void;
+  error?: (recoverable: boolean, note: string) => void;
+}
+
+/**
+ * Stream a turn over SSE (ADR-033). Native `fetch` + a small line parser — no
+ * `EventSource` (can't POST), no dependency. Resolves when the stream closes.
+ * A failure before the first token → the caller falls back to {@link useSendTurn}.
+ */
+export async function streamOscarTurn(
+  conversationId: string,
+  message: string,
+  on: StreamHandlers
+): Promise<{ streamedAnyToken: boolean }> {
+  let streamedAnyToken = false;
+  let res: Response;
+  try {
+    res = await fetch(`/api/orbit/oscar/conversations/${conversationId}/turns/stream`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'text/event-stream',
+        'x-request-id': crypto.randomUUID(),
+      },
+      body: JSON.stringify({ message }),
+    });
+  } catch {
+    on.error?.(true, 'OSCAR is temporarily unavailable.');
+    return { streamedAnyToken };
+  }
+  if (!res.ok || !res.body) {
+    on.error?.(true, 'OSCAR is temporarily unavailable.');
+    return { streamedAnyToken };
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let event = '';
+
+  const dispatch = (name: string, payload: string) => {
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(payload);
+    } catch {
+      return;
+    }
+    switch (name) {
+      case 'status':
+        on.status?.(String(data.text ?? ''));
+        break;
+      case 'token':
+        streamedAnyToken = true;
+        on.token(String(data.text ?? ''));
+        break;
+      case 'proposedAction':
+        on.proposedAction?.(data as unknown as OscarProposedAction);
+        break;
+      case 'meta':
+        on.meta?.(data as unknown as OscarResponse);
+        break;
+      case 'done':
+        on.done?.(Boolean(data.persisted), String(data.messageId ?? ''));
+        break;
+      case 'error':
+        on.error?.(Boolean(data.recoverable), String(data.note ?? ''));
+        break;
+    }
+  };
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).replace(/\r$/, '');
+      buf = buf.slice(nl + 1);
+      if (line === '') {
+        event = '';
+      } else if (line.startsWith('event:')) {
+        event = line.slice(6).trim();
+      } else if (line.startsWith('data:')) {
+        dispatch(event, line.slice(5).trim());
+      }
+    }
+  }
+  return { streamedAnyToken };
+}
+
+export function useNudge(surface: 'today' | 'objective', objectiveId?: string) {
+  const params = new URLSearchParams({ surface });
+  if (objectiveId) params.set('objectiveId', objectiveId);
+  return useQuery({
+    queryKey: ['oscar', 'nudge', surface, objectiveId ?? ''],
+    queryFn: () => apiGet<OscarNudge>(`/oscar/nudge?${params.toString()}`),
+    staleTime: 30 * 60 * 1000,
+    retry: false,
   });
 }
 

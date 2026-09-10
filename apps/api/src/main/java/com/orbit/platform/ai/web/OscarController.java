@@ -3,9 +3,11 @@ package com.orbit.platform.ai.web;
 import com.orbit.platform.ai.AiProperties;
 import com.orbit.platform.ai.service.AiService;
 import com.orbit.platform.ai.service.ConversationService;
+import com.orbit.platform.ai.service.NudgeService;
 import com.orbit.platform.ai.web.dto.OscarDtos.ConversationDetail;
 import com.orbit.platform.ai.web.dto.OscarDtos.ConversationSummary;
 import com.orbit.platform.ai.web.dto.OscarDtos.CreateConversationRequest;
+import com.orbit.platform.ai.web.dto.OscarDtos.Nudge;
 import com.orbit.platform.ai.web.dto.OscarDtos.OscarStatus;
 import com.orbit.platform.ai.web.dto.OscarDtos.RenameConversationRequest;
 import com.orbit.platform.ai.web.dto.OscarDtos.TurnRequest;
@@ -13,6 +15,7 @@ import com.orbit.platform.ai.web.dto.OscarDtos.TurnResponse;
 import com.orbit.platform.common.dto.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -20,8 +23,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.UUID;
@@ -37,11 +42,14 @@ import java.util.UUID;
 public class OscarController {
 
     private final ConversationService conversations;
+    private final NudgeService nudges;
     private final AiService ai;
     private final AiProperties props;
 
-    public OscarController(ConversationService conversations, AiService ai, AiProperties props) {
+    public OscarController(ConversationService conversations, NudgeService nudges, AiService ai,
+                           AiProperties props) {
         this.conversations = conversations;
+        this.nudges = nudges;
         this.ai = ai;
         this.props = props;
     }
@@ -86,5 +94,27 @@ public class OscarController {
     @PostMapping("/conversations/{id}/turns")
     public ApiResponse<TurnResponse> turn(@PathVariable UUID id, @Valid @RequestBody TurnRequest req) {
         return ApiResponse.of(conversations.turn(id, req.message()));
+    }
+
+    /**
+     * Streamed turn (ADR-033) — {@code text/event-stream}. Ownership / rate-limit
+     * / validation happen synchronously (a 404 / 429 / 422 is a normal JSON
+     * response); then SSE frames: {@code status} / {@code token} /
+     * {@code proposedAction} / {@code meta} / {@code done} / {@code error}.
+     */
+    @PostMapping(value = "/conversations/{id}/turns/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter turnStream(@PathVariable UUID id, @Valid @RequestBody TurnRequest req) {
+        return conversations.streamTurn(id, req.message());
+    }
+
+    /**
+     * A contextual recommendation card for a page (ADR-034). Cached, single-shot,
+     * no tools. {@code status} is {@code ready} / {@code none} / {@code unavailable}
+     * — the client renders nothing for the latter two.
+     */
+    @GetMapping("/nudge")
+    public ApiResponse<Nudge> nudge(@RequestParam String surface,
+                                    @RequestParam(required = false) UUID objectiveId) {
+        return ApiResponse.of(nudges.nudgeFor(surface, objectiveId));
     }
 }

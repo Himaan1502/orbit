@@ -7,68 +7,68 @@ import com.orbit.platform.ai.service.OscarResponse.Kind;
 import com.orbit.platform.ai.service.ResponseValidator;
 import org.junit.jupiter.api.Test;
 
-import java.util.Optional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** {@link ResponseValidator} — model output is never trusted (Blueprint §13, ADR-032 §6). */
+/**
+ * {@link ResponseValidator} — the {@code oscar-v2} prose-then-sentinel format
+ * (ADR-033 §2). Prose that arrived is always real; only no-prose degrades.
+ */
 class ResponseValidatorTest {
 
     private final ResponseValidator validator = new ResponseValidator(new ObjectMapper());
 
     @Test
-    void parsesACleanAnswerObject() {
-        Optional<OscarResponse> r = validator.parse(
-                "{\"kind\":\"answer\",\"message\":\"Focus on the reconcile loop.\"}");
-        assertThat(r).isPresent();
-        assertThat(r.get().kind()).isEqualTo(Kind.answer);
-        assertThat(r.get().message()).isEqualTo("Focus on the reconcile loop.");
+    void proseOnlyIsAPlainAnswer() {
+        OscarResponse r = validator.parse("Start with the reconcile loop.").orElseThrow();
+        assertThat(r.kind()).isEqualTo(Kind.answer);
+        assertThat(r.message()).isEqualTo("Start with the reconcile loop.");
+        assertThat(r.sections()).isNull();
     }
 
     @Test
-    void toleratesMarkdownFencesAndSurroundingProse() {
-        String raw = "Sure! Here's my answer:\n```json\n{\"kind\":\"answer\","
-                + "\"message\":\"Do the migration first.\"}\n```\nHope that helps.";
-        Optional<OscarResponse> r = validator.parse(raw);
-        assertThat(r).isPresent();
-        assertThat(r.get().message()).isEqualTo("Do the migration first.");
+    void splitsProseFromTheMetaBlockOnTheSentinel() {
+        var s = validator.split("Focus on Kubernetes.\n===OSCAR-META===\n{\"kind\":\"recommendation\"}");
+        assertThat(s.prose()).isEqualTo("Focus on Kubernetes.");
+        assertThat(s.metaJson()).isEqualTo("{\"kind\":\"recommendation\"}");
     }
 
     @Test
     void parsesARecommendationWithFactMetricInferenceEvidence() {
         String raw = """
-                {"kind":"recommendation","message":"Assess Kubernetes.",
-                 "sections":{"action":"Self-assess Kubernetes","why":"largest gap",
-                   "impact":"readiness +4","evidence":[
-                     {"label":"gap","kind":"metric","value":"0.62"},
-                     {"label":"target","kind":"fact","value":"Platform Engineer"},
-                     {"label":"est","kind":"inference","value":"~2h"}]},
+                Assess Kubernetes this week.
+                ===OSCAR-META===
+                {"kind":"recommendation","sections":{"action":"Self-assess Kubernetes",
+                  "why":"largest gap","impact":"readiness +4","evidence":[
+                    {"label":"gap","kind":"metric","value":"0.62"},
+                    {"label":"target","kind":"fact","value":"Platform Engineer"},
+                    {"label":"est","kind":"inference","value":"~2h"}]},
                  "citations":["careerTarget"]}""";
         OscarResponse r = validator.parse(raw).orElseThrow();
         assertThat(r.kind()).isEqualTo(Kind.recommendation);
+        assertThat(r.message()).isEqualTo("Assess Kubernetes this week.");
         assertThat(r.sections().evidence()).extracting(OscarResponse.EvidenceRef::kind)
                 .containsExactly(EvidenceKind.metric, EvidenceKind.fact, EvidenceKind.inference);
         assertThat(r.citations()).containsExactly("careerTarget");
     }
 
     @Test
-    void recommendationWithoutSectionsFallsBackToAnswer() {
-        OscarResponse r = validator.parse(
-                "{\"kind\":\"recommendation\",\"message\":\"hi\"}").orElseThrow();
+    void unparsableMetaBlockLeavesTheProseStanding() {
+        OscarResponse r = validator.parse("Here is the answer.\n===OSCAR-META===\nnot json").orElseThrow();
         assertThat(r.kind()).isEqualTo(Kind.answer);
+        assertThat(r.message()).isEqualTo("Here is the answer.");
     }
 
     @Test
-    void emptyOnUnparsableOrMessagelessOutput() {
-        assertThat(validator.parse("not json at all")).isEmpty();
-        assertThat(validator.parse("{\"kind\":\"answer\"}")).isEmpty();
+    void aLegacyJsonOnlyReplyIsStillHandled() {
+        OscarResponse r = validator.parse(
+                "{\"kind\":\"answer\",\"message\":\"Do the migration first.\"}").orElseThrow();
+        assertThat(r.message()).isEqualTo("Do the migration first.");
+    }
+
+    @Test
+    void noProseAtAllIsEmpty() {
         assertThat(validator.parse("")).isEmpty();
         assertThat(validator.parse(null)).isEmpty();
-    }
-
-    @Test
-    void picksUpProseFromAnswerOrTextKeys() {
-        assertThat(validator.parse("{\"answer\":\"via the answer key\"}").orElseThrow().message())
-                .isEqualTo("via the answer key");
+        assertThat(validator.parse("===OSCAR-META===\n{\"kind\":\"answer\"}")).isEmpty();
     }
 }

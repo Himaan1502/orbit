@@ -9,7 +9,9 @@ import com.orbit.platform.ai.model.TokenUsage;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Groq (ADR-031 §1) — the documented fallback. OpenAI-compatible
@@ -43,35 +45,54 @@ public class GroqProvider extends HttpAiProviderSupport implements AiProvider {
 
     @Override
     public AiCompletion complete(AiRequest request) {
+        JsonNode resp = post("/chat/completions", requestBody(request, false).toString(),
+                h -> h.header("authorization", "Bearer " + props.groq().apiKey()));
+        Acc acc = new Acc();
+        acc.whole(resp);
+        return acc.toCompletion();
+    }
+
+    @Override
+    public AiCompletion completeStream(AiRequest request, TokenSink sink) {
+        Acc acc = new Acc();
+        postStream("/chat/completions", requestBody(request, true).toString(),
+                h -> h.header("authorization", "Bearer " + props.groq().apiKey()),
+                payload -> acc.chunk(readTreeSafe(payload), sink));
+        return acc.toCompletion();
+    }
+
+    // ---------------------------------------------------------------------
+
+    private ObjectNode requestBody(AiRequest request, boolean stream) {
         ObjectNode body = json.createObjectNode();
         body.put("model", props.groq().model());
         body.put("temperature", request.temperature());
         body.put("max_tokens", request.maxOutputTokens());
         body.set("messages", messages(request));
-
+        if (stream) {
+            body.put("stream", true);
+            body.set("stream_options", json.createObjectNode().put("include_usage", true));
+        }
         if (request.tools() != null && !request.tools().isEmpty()) {
             ArrayNode tools = json.createArrayNode();
             for (ToolSpec t : request.tools()) {
-                ObjectNode fn = json.createObjectNode();
-                fn.put("name", t.name());
-                fn.put("description", t.description());
-                fn.set("parameters", readNode(t.parametersJson(), "{\"type\":\"object\"}"));
-                tools.add(json.createObjectNode().put("type", "function").set("function", fn));
+                tools.add(json.createObjectNode().put("type", "function").set("function",
+                        json.createObjectNode()
+                                .put("name", t.name())
+                                .put("description", t.description())
+                                .set("parameters", readTreeSafe(
+                                        t.parametersJson() == null || t.parametersJson().isBlank()
+                                                ? "{\"type\":\"object\"}" : t.parametersJson()))));
             }
             body.set("tools", tools);
             body.put("tool_choice", "auto");
         }
-
-        JsonNode resp = post("/chat/completions", body.toString(),
-                h -> h.setBearerAuth(props.groq().apiKey()));
-
-        return parse(resp);
+        return body;
     }
 
     private ArrayNode messages(AiRequest request) {
         ArrayNode messages = json.createArrayNode();
         messages.add(json.createObjectNode().put("role", "system").put("content", request.systemPrompt()));
-
         for (ChatItem item : request.history()) {
             switch (item) {
                 case ChatItem.UserText u ->
@@ -79,18 +100,16 @@ public class GroqProvider extends HttpAiProviderSupport implements AiProvider {
                 case ChatItem.ModelText m ->
                         messages.add(json.createObjectNode().put("role", "assistant").put("content", m.text()));
                 case ChatItem.ModelToolCalls tc -> {
-                    ObjectNode msg = json.createObjectNode();
-                    msg.put("role", "assistant");
+                    ObjectNode msg = json.createObjectNode().put("role", "assistant");
                     msg.putNull("content");
                     ArrayNode calls = json.createArrayNode();
                     for (ChatItem.ToolCall call : tc.calls()) {
-                        ObjectNode c = json.createObjectNode();
-                        c.put("id", call.id());
-                        c.put("type", "function");
-                        c.set("function", json.createObjectNode()
-                                .put("name", call.name())
-                                .put("arguments", call.argumentsJson() == null ? "{}" : call.argumentsJson()));
-                        calls.add(c);
+                        calls.add(json.createObjectNode()
+                                .put("id", call.id())
+                                .put("type", "function")
+                                .set("function", json.createObjectNode()
+                                        .put("name", call.name())
+                                        .put("arguments", call.argumentsJson() == null ? "{}" : call.argumentsJson())));
                     }
                     msg.set("tool_calls", calls);
                     messages.add(msg);
@@ -109,45 +128,88 @@ public class GroqProvider extends HttpAiProviderSupport implements AiProvider {
         return messages;
     }
 
-    private AiCompletion parse(JsonNode resp) {
-        JsonNode choices = resp.path("choices");
-        StringBuilder text = new StringBuilder();
-        List<ChatItem.ToolCall> calls = new ArrayList<>();
-        String finish = null;
+    /** Accumulates OpenAI-style chunks (streamed deltas or one whole response). */
+    private final class Acc {
+        private final StringBuilder text = new StringBuilder();
+        private final Map<Integer, ToolCallDraft> toolDrafts = new LinkedHashMap<>();
+        private int promptTokens;
+        private int completionTokens;
+        private String finish;
 
-        if (choices.isArray() && !choices.isEmpty()) {
-            JsonNode choice = choices.get(0);
-            finish = choice.path("finish_reason").asText(null);
-            JsonNode message = choice.path("message");
-            if (message.hasNonNull("content")) {
-                text.append(message.get("content").asText());
+        void whole(JsonNode resp) {
+            JsonNode choices = resp.path("choices");
+            if (choices.isArray() && !choices.isEmpty()) {
+                JsonNode choice = choices.get(0);
+                finish = choice.path("finish_reason").asText(null);
+                JsonNode message = choice.path("message");
+                if (message.hasNonNull("content")) {
+                    text.append(message.get("content").asText());
+                }
+                int i = 0;
+                for (JsonNode call : message.path("tool_calls")) {
+                    ToolCallDraft d = toolDrafts.computeIfAbsent(i++, k -> new ToolCallDraft());
+                    d.id = call.path("id").asText(d.id);
+                    d.name = call.path("function").path("name").asText(d.name);
+                    d.args.append(call.path("function").path("arguments").asText(""));
+                }
             }
-            for (JsonNode call : message.path("tool_calls")) {
-                JsonNode fn = call.path("function");
-                calls.add(new ChatItem.ToolCall(
-                        call.path("id").asText(fn.path("name").asText() + "#" + calls.size()),
-                        fn.path("name").asText(),
-                        fn.path("arguments").asText("{}")));
+            usage(resp.path("usage"));
+        }
+
+        void chunk(JsonNode chunk, TokenSink sink) {
+            for (JsonNode choice : chunk.path("choices")) {
+                if (choice.hasNonNull("finish_reason")) {
+                    finish = choice.get("finish_reason").asText();
+                }
+                JsonNode delta = choice.path("delta");
+                if (delta.hasNonNull("content")) {
+                    String d = delta.get("content").asText();
+                    text.append(d);
+                    if (!d.isEmpty()) {
+                        sink.onToken(d);
+                    }
+                }
+                for (JsonNode tc : delta.path("tool_calls")) {
+                    int idx = tc.path("index").asInt(0);
+                    ToolCallDraft d = toolDrafts.computeIfAbsent(idx, k -> new ToolCallDraft());
+                    if (tc.hasNonNull("id")) {
+                        d.id = tc.get("id").asText();
+                    }
+                    JsonNode fn = tc.path("function");
+                    if (fn.hasNonNull("name")) {
+                        d.name = fn.get("name").asText();
+                    }
+                    if (fn.hasNonNull("arguments")) {
+                        d.args.append(fn.get("arguments").asText());
+                    }
+                }
+            }
+            usage(chunk.path("usage"));
+        }
+
+        private void usage(JsonNode usage) {
+            if (usage != null && usage.isObject()) {
+                promptTokens = usage.path("prompt_tokens").asInt(promptTokens);
+                completionTokens = usage.path("completion_tokens").asInt(completionTokens);
             }
         }
 
-        JsonNode usage = resp.path("usage");
-        TokenUsage tokens = new TokenUsage(
-                usage.path("prompt_tokens").asInt(0),
-                usage.path("completion_tokens").asInt(0));
-
-        return new AiCompletion(text.toString(), calls, tokens, finish);
+        AiCompletion toCompletion() {
+            List<ChatItem.ToolCall> calls = new ArrayList<>();
+            int i = 0;
+            for (ToolCallDraft d : toolDrafts.values()) {
+                String id = d.id != null ? d.id : (d.name == null ? "call#" : d.name) + "#" + i++;
+                calls.add(new ChatItem.ToolCall(id, d.name == null ? "" : d.name,
+                        d.args.length() == 0 ? "{}" : d.args.toString()));
+            }
+            return new AiCompletion(text.toString(), calls,
+                    new TokenUsage(promptTokens, completionTokens), finish);
+        }
     }
 
-    private JsonNode readNode(String raw, String fallback) {
-        try {
-            return json.readTree(raw == null || raw.isBlank() ? fallback : raw);
-        } catch (com.fasterxml.jackson.core.JacksonException e) {
-            try {
-                return json.readTree(fallback);
-            } catch (com.fasterxml.jackson.core.JacksonException ignored) {
-                return json.createObjectNode();
-            }
-        }
+    private static final class ToolCallDraft {
+        private String id;
+        private String name;
+        private final StringBuilder args = new StringBuilder();
     }
 }

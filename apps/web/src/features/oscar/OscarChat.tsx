@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, SendHorizonal } from 'lucide-react';
-import type { OscarMessageView, OscarResponse } from '@/lib/api-types';
+import type { OscarMessageView, OscarProposedAction, OscarResponse } from '@/lib/api-types';
 import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/States';
-import { useConversation, useCreateConversation, useSendTurn } from './api';
+import { streamOscarTurn, useConversation, useCreateConversation, useSendTurn } from './api';
 import { RecommendationView } from './RecommendationView';
 import { ProposedActionCard } from './ProposedActionCard';
 import { OscarUnavailable } from './OscarUnavailable';
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function OscarChat({ conversationId, onConversationCreated }: Props) {
+  const qc = useQueryClient();
   const detail = useConversation(conversationId);
   const create = useCreateConversation();
   const send = useSendTurn(conversationId ?? 'pending');
@@ -23,55 +25,104 @@ export function OscarChat({ conversationId, onConversationCreated }: Props) {
   const [input, setInput] = useState('');
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
   const [lastResponse, setLastResponse] = useState<OscarResponse | null>(null);
+  const [streaming, setStreaming] = useState(false);
+  const [liveText, setLiveText] = useState('');
+  const [liveStatus, setLiveStatus] = useState('');
+  const [liveActions, setLiveActions] = useState<OscarProposedAction[]>([]);
+  const [note, setNote] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const busy = create.isPending || send.isPending;
+  const busy = streaming || create.isPending || send.isPending;
   const messages: OscarMessageView[] = conversationId ? (detail.data?.messages ?? []) : [];
 
   useEffect(() => {
     setLastResponse(null);
     setPendingUserText(null);
     setInput('');
+    setLiveText('');
+    setLiveStatus('');
+    setLiveActions([]);
+    setNote(null);
   }, [conversationId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, pendingUserText, lastResponse]);
+  }, [messages.length, pendingUserText, liveText, liveStatus, lastResponse]);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
     if (!text || busy) return;
     setInput('');
     setPendingUserText(text);
     setLastResponse(null);
+    setLiveText('');
+    setLiveStatus('');
+    setLiveActions([]);
+    setNote(null);
+    setStreaming(true);
 
-    const onDone = (r: { conversation: { id: string }; response: OscarResponse | null }) => {
+    let convId = conversationId;
+    try {
+      if (!convId) {
+        const created = await create.mutateAsync(undefined);
+        convId = created.conversation.id;
+        onConversationCreated(convId);
+      }
+    } catch {
+      setStreaming(false);
       setPendingUserText(null);
-      setLastResponse(r.response);
-    };
+      setNote('OSCAR is temporarily unavailable.');
+      return;
+    }
 
-    if (!conversationId) {
-      create.mutate(text, {
+    const targetId = convId;
+    const { streamedAnyToken } = await streamOscarTurn(targetId, text, {
+      status: setLiveStatus,
+      token: (d) => setLiveText((prev) => prev + d),
+      proposedAction: (a) => setLiveActions((prev) => [...prev, a]),
+      meta: setLastResponse,
+      error: (_recoverable, n) => setNote(n),
+      done: async (persisted) => {
+        setLiveStatus('');
+        if (persisted) {
+          await qc.invalidateQueries({ queryKey: ['oscar', 'conversation', targetId] });
+          await qc.invalidateQueries({ queryKey: ['oscar', 'conversations'] });
+          setLiveText('');
+          setLiveActions([]);
+        }
+        setStreaming(false);
+        setPendingUserText(null);
+      },
+    });
+
+    // stream failed before any token → fall back to the non-streaming turn
+    if (!streamedAnyToken) {
+      setLiveStatus('');
+      send.mutate(text, {
         onSuccess: (r) => {
-          onConversationCreated(r.conversation.id);
-          onDone(r);
+          setLastResponse(r.response);
+          setStreaming(false);
+          setPendingUserText(null);
+          qc.invalidateQueries({ queryKey: ['oscar', 'conversation', targetId] });
         },
-        onError: () => setPendingUserText(null),
+        onError: () => {
+          setStreaming(false);
+          setPendingUserText(null);
+          setNote('OSCAR is temporarily unavailable.');
+        },
       });
-    } else {
-      send.mutate(text, { onSuccess: onDone, onError: () => setPendingUserText(null) });
     }
   }
 
   if (conversationId && detail.isLoading) return <LoadingState label="Loading conversation…" />;
 
-  const showRichForLast = lastResponse && lastResponse.kind !== 'unavailable';
+  const showRich = lastResponse && lastResponse.kind !== 'unavailable';
 
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-        {messages.length === 0 && !pendingUserText && !lastResponse && (
+        {messages.length === 0 && !pendingUserText && !liveText && !note && (
           <div className="py-10 text-center">
             <p className="text-sm text-[var(--text-primary)]">Ask OSCAR about your work.</p>
             <p className="mt-1 text-xs text-[var(--text-secondary)]">
@@ -85,7 +136,7 @@ export function OscarChat({ conversationId, onConversationCreated }: Props) {
           const isLastAssistant = m.role === 'assistant' && i === messages.length - 1;
           return (
             <Bubble key={m.id} role={m.role} text={m.content}>
-              {isLastAssistant && showRichForLast && (
+              {isLastAssistant && showRich && !liveText && (
                 <>
                   <RecommendationView response={lastResponse} />
                   {lastResponse.proposedActions?.map((a, idx) => (
@@ -99,12 +150,28 @@ export function OscarChat({ conversationId, onConversationCreated }: Props) {
 
         {pendingUserText && <Bubble role="user" text={pendingUserText} />}
 
-        {busy && (
+        {liveStatus && (
           <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-            <Loader2 size={14} className="animate-spin" /> OSCAR is thinking…
+            <Loader2 size={13} className="animate-spin" /> {liveStatus}
           </div>
         )}
 
+        {liveText && (
+          <Bubble role="assistant" text={liveText + (streaming ? '▍' : '')}>
+            {liveActions.map((a, idx) => (
+              <ProposedActionCard key={idx} action={a} />
+            ))}
+            {showRich && !streaming && <RecommendationView response={lastResponse} />}
+          </Bubble>
+        )}
+
+        {streaming && !liveText && !liveStatus && (
+          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+            <Loader2 size={13} className="animate-spin" /> OSCAR is thinking…
+          </div>
+        )}
+
+        {note && <p className="text-xs text-[var(--color-warning)]">{note}</p>}
         {lastResponse?.kind === 'unavailable' && !busy && <OscarUnavailable compact />}
 
         <div ref={bottomRef} />

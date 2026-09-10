@@ -292,6 +292,40 @@ env overrides. The abstraction, routing, free-tier handling and every sign-off
 item are unchanged — only the version strings moved. Recorded in ADR-031's
 History section.
 
+### Pre-Milestone-8 pass — OSCAR streaming + contextual cards — verified 2026-09-10
+
+Our numbering; a scoped pass *before* the Production Platform milestone (the
+non-streaming 30–60s wait is a real UX cost). Every row checked by running the
+command / driving the flow.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| SSE streaming ([ADR-033](docs/adr/ADR-033-oscar-streaming.md)) | ✅ | `POST /api/v1/oscar/conversations/{id}/turns/stream` → `text/event-stream` via MVC `SseEmitter` (`OscarWebConfig`: 120s emitter timeout, dedicated 2–4 thread `oscarStreamExecutor`). The non-streaming `/turns` endpoint stays (tests, nudges, client fallback). Events: `status` / `token` / `proposedAction` / `meta` / `done` / `error`. `OscarStreamOrchestrator` reuses the tool-round loop; a `ProseFilter` (`TokenSink`) forwards prose and stops at the `===OSCAR-META===` sentinel. |
+| `oscar-v2` response format | ✅ | Prose first, then optional `===OSCAR-META===` + `{kind, sections?, citations?}` JSON — **one format, one parser, both paths**. `oscar-v1` retired. `ResponseValidator.split` / `parseMeta`; **prose that arrived is always real** — the "safe fallback, unpersisted" path now only fires when *no prose at all* arrived. Legacy JSON-only replies still handled. `prompt_version = oscar-v2` on every new `ai_messages` row. |
+| Provider adapters → JDK `HttpClient` | ✅ | `HttpAiProviderSupport` migrated off Spring `RestClient` to `java.net.http.HttpClient` (no new dependency) — blocking `post` + streaming `postStream` (`BodyHandlers.ofLines()`, SSE `data:` frames, `[DONE]` terminated). `GeminiProvider` (`:streamGenerateContent?alt=sse`) + `GroqProvider` (`stream:true` + `stream_options.include_usage`, streamed tool-call argument fragments reassembled by index). `completeStream(AiRequest, TokenSink)`. |
+| Provider routing moved to `ProviderGateway` | ✅ | Shared by the blocking + streaming loops: primary → 1 retry on transient 5xx (not on 429) → fail over → `null` (degraded). **Streaming fail-over is gated on the first token** (ADR-033 §5) — after a token has streamed, a provider drop ends the stream (`error{recoverable}` + unpersisted, the partial prose flushed to the user) with **no mid-answer switch**. `ProviderGatewayTest` (8). |
+| Tool rounds as `status` events | ✅ | "Checking your skill gaps and today's plan…" while read tools run; `proposedAction` events emitted before the synthesis stream on a mutation call. Bounded by `orbit.ai.max-tool-rounds` exactly as M7. |
+| BFF + web streaming client | ✅ | BFF (`/api/orbit/[...path]`) detects `text/event-stream` and pipes `res.body` through **unbuffered** (`no-cache, no-transform`, `x-accel-buffering: no`). `streamOscarTurn()` — native `fetch` + `response.body.getReader()` + a ~40-line SSE line parser (no `EventSource`, no dependency). `OscarChat` renders `token` into a live bubble with a `▍` caret, `status` into a progress line, `proposedAction`/`meta` as they arrive; **falls back to the non-streaming `useSendTurn`** if the stream fails before the first token. |
+| Contextual cards ([ADR-034](docs/adr/ADR-034-oscar-contextual-cards.md)) | ✅ | `GET /api/v1/oscar/nudge?surface=today\|objective&objectiveId=` — **single-shot, no tool rounds**, a small surface-focused context, **prose-only** (the nudge generator declares no mutation tools — OSCAR never writes for nudges). `NudgeService` + `NudgeCache` (`StringRedisTemplate` — the **first real API Redis use**): result cached by `oscar:nudge:{user}:{surface}:{id}:{data-fingerprint}` (12h TTL) so an unchanged page = **zero provider calls**; a separate `orbit.ai.nudge-hourly-cap` (12) budget, isolated from the conversational cap. Redis down / provider down / `SKIP` → `status:"none"`/`"unavailable"` → the `<OscarNudge>` component **renders nothing** (no error, no banner). Dismissible per surface per day (localStorage). Surfaces: `/today` + `/objectives/[id]`. |
+| Ownership / degradation | ✅ | Nudge for another user's objective → `status:"none"` (never a leak). Streamed turn: ownership-404 / 429 / 422 happen synchronously (normal JSON) before the SSE starts. `OscarNudgeIntegrationTest` (3, incl. the fingerprint-cache "no 2nd provider call" assertion + Alice/Bob), `OscarConversationIntegrationTest` (+1: nudge `unavailable` with no key). |
+| Priority Engine / Skill Scoring / Readiness | ✅ | **Untouched.** |
+| Tests | ✅ | `apps/api` `./gradlew clean build` — `BUILD SUCCESSFUL`, **204 tests** (0 failures), Checkstyle 0, SpotBugs 0. `apps/auth` `build` — 12 tests. `apps/web` `build` (27 routes) / `lint` / `prettier` / `tsc` clean, `vitest` **17/17** (+`OscarNudge.test.tsx`). |
+| Full browser E2E | ✅ | 2026-09-10 — Playwright vs the compose stack (real `gemini-3.6-flash`): `/oscar` → ask a question → **the `▍` caret shows, answer text appears and grows before the turn finishes**, caret clears on completion, the answer persists across a reload. Contextual card: renders on `/today` + `/objectives/[id]` (or is silently absent on a `SKIP`), **Dismiss sticks across a reload**, **no error surface** on either page. |
+| `docker compose` (all 5) | ✅ | 2026-09-10 — `build orbit-api orbit-web` → `up -d` (**no `-v`**) → all 5 `Up (healthy)`; **no new migration** (still Flyway V10), pilot account `himaanshu15028@gmail.com` **row intact** (`active`). E2E `@orbit.local` users cleaned out afterward. Torn down with `docker compose down` (no `-v`). |
+
+Not in scope for this pass and still open: streaming for contextual nudges
+(cached, latency hidden), skill / roadmap / Career nudge surfaces, a nudge
+`proposedAction` (prose-only this pass), scheduled nudge pre-warm, any SSE
+library, WebFlux migration, a mid-stream idle watchdog (hard stream cap only),
+the post-confirmation "system note" (still M7's deferral). See
+[deferred-items.md](docs/engineering/deferred-items.md).
+
+Pre-M8 ADRs — **all 12 sign-off items ratified by the product owner 2026-09-10**:
+[ADR-033](docs/adr/ADR-033-oscar-streaming.md) (SSE, `oscar-v2`, JDK `HttpClient`,
+fail-over pre-first-token), [ADR-034](docs/adr/ADR-034-oscar-contextual-cards.md)
+(`/oscar/nudge`, Redis fingerprint cache, own hourly budget, silent-by-default).
+New tunable: `orbit.ai.nudge-hourly-cap` (12).
+
 Auth: OIDC via self-hosted Spring Authorization Server (`apps/auth`) — see
 [ADR-004](docs/adr/ADR-004-oidc-authentication.md). M1 persistence and identity:
 [ADR-011](docs/adr/ADR-011-authorization-server-persistence.md),

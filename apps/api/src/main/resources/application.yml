@@ -124,6 +124,7 @@ orbit:
     prompt-token-budget: 24000     # per-turn prompt budget
     output-token-budget: 2000      # per-turn model output cap
     max-tool-rounds: 3             # read-tool rounds before a final answer is forced
+    nudge-hourly-cap: 12           # contextual-card generations / user / rolling hour (ADR-034)
     connect-timeout-ms: 5000
     read-timeout-ms: 60000        # gemini-3.6-flash reasons before answering — a turn can take ~30-60s
     gemini:

@@ -48,7 +48,7 @@ class GroqProviderTest {
 
     private GroqProvider provider() {
         String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
-        AiProperties props = new AiProperties("gemini", "groq", 50, 24000, 2000, 3, 2000, 5000,
+        AiProperties props = new AiProperties("gemini", "groq", 50, 24000, 2000, 3, 12, 2000, 5000,
                 new AiProperties.Gemini("", "gemini-3.6-flash", "http://unused"),
                 new AiProperties.Groq("groq-key", "openai/gpt-oss-120b", baseUrl));
         return new GroqProvider(new ObjectMapper(), props);
@@ -81,5 +81,32 @@ class GroqProviderTest {
         assertThat(c.hasToolCalls()).isTrue();
         assertThat(c.toolCalls().get(0).id()).isEqualTo("call_1");
         assertThat(c.toolCalls().get(0).name()).isEqualTo("get_today_plan");
+    }
+
+    @Test
+    void streamsDeltaContentAndAssemblesUsage() {
+        body.set("data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n\n"
+                + "data: {\"choices\":[{\"delta\":{\"content\":\"lo\"},\"finish_reason\":\"stop\"}]}\n\n"
+                + "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":2}}\n\n"
+                + "data: [DONE]\n\n");
+        StringBuilder got = new StringBuilder();
+        AiCompletion c = provider().completeStream(request(), got::append);
+        assertThat(got.toString()).isEqualTo("Hello");
+        assertThat(c.text()).isEqualTo("Hello");
+        assertThat(c.usage().promptTokens()).isEqualTo(7);
+    }
+
+    @Test
+    void streamsToolCallArgumentFragments() {
+        body.set("data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_9\","
+                + "\"function\":{\"name\":\"get_today_plan\",\"arguments\":\"{\\\"a\\\":\"}}]}}]}\n\n"
+                + "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,"
+                + "\"function\":{\"arguments\":\"1}\"}}]}}]}\n\n"
+                + "data: [DONE]\n\n");
+        AiCompletion c = provider().completeStream(request(), s -> { });
+        assertThat(c.toolCalls()).singleElement().satisfies(call -> {
+            assertThat(call.name()).isEqualTo("get_today_plan");
+            assertThat(call.argumentsJson()).isEqualTo("{\"a\":1}");
+        });
     }
 }

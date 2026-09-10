@@ -76,9 +76,21 @@ async function forward(
     redirect: 'manual',
   });
 
+  const resType = res.headers.get('content-type') ?? '';
+
+  // Server-Sent Events (OSCAR streaming, ADR-033 §7) — pipe the body straight
+  // through, unbuffered, so tokens reach the browser as they arrive.
+  if (resType.includes('text/event-stream') && res.body) {
+    const out = new NextResponse(res.body, { status: res.status });
+    out.headers.set('content-type', 'text/event-stream');
+    out.headers.set('cache-control', 'no-cache, no-transform');
+    out.headers.set('x-accel-buffering', 'no');
+    out.headers.set('connection', 'keep-alive');
+    return out;
+  }
+
   const body = await res.text();
   const out = new NextResponse(body, { status: res.status });
-  const resType = res.headers.get('content-type');
   if (resType) out.headers.set('content-type', resType);
   return out;
 }

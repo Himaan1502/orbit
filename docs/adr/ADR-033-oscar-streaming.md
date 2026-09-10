@@ -1,10 +1,10 @@
 # ADR-033: OSCAR Streaming — SSE, and a Prose-First Response Format
 
 ## Status
-Proposed — pre-Milestone-8 pass (approved by the product owner 2026-09-10 as the
-next work after M7, ahead of the Production Platform milestone). Supersedes
-[ADR-031](ADR-031-ai-provider-abstraction.md) §Alternatives 4 ("Streaming
-responses (SSE) in M7 — Deferred").
+Accepted — approved by the product owner 2026-09-10, all six sign-off items.
+Pre-Milestone-8 pass (the next work after M7, ahead of the Production Platform
+milestone). Supersedes [ADR-031](ADR-031-ai-provider-abstraction.md)
+§Alternatives 4 ("Streaming responses (SSE) in M7 — Deferred").
 
 ## Date
 2026-09-10

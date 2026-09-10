@@ -25,6 +25,8 @@ public record AiProperties(
         @DefaultValue("2000") int outputTokenBudget,
         /** Max read-tool rounds before the model must produce a final answer (ADR-031 §2). */
         @DefaultValue("3") int maxToolRounds,
+        /** Contextual-card generations allowed per user per rolling hour (ADR-034 §4). */
+        @DefaultValue("12") int nudgeHourlyCap,
         /** HTTP connect timeout for a provider call (ms). */
         @DefaultValue("5000") int connectTimeoutMs,
         /** HTTP read timeout for a provider call (ms) — a reasoning flash model can take ~30-60s. */
@@ -69,6 +71,9 @@ public record AiProperties(
         }
         if (maxToolRounds < 0 || maxToolRounds > 8) {
             throw new IllegalStateException("orbit.ai.max-tool-rounds must be within [0,8] (got " + maxToolRounds + ")");
+        }
+        if (nudgeHourlyCap < 0) {
+            throw new IllegalStateException("orbit.ai.nudge-hourly-cap must be >= 0 (got " + nudgeHourlyCap + ")");
         }
         if (!primary.equals("gemini") && !primary.equals("groq")) {
             throw new IllegalStateException("orbit.ai.primary must be 'gemini' or 'groq' (got '" + primary + "')");

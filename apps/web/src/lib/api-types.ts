@@ -675,3 +675,19 @@ export interface OscarConversationDetail {
   conversation: OscarConversation;
   messages: OscarMessageView[];
 }
+
+// ----- OSCAR contextual cards (ADR-034) -----
+
+export interface OscarNudgeCard {
+  headline: string;
+  body: string | null;
+  why: string | null;
+  proposedAction: OscarProposedAction | null;
+  generatedAt: string | null;
+}
+
+export interface OscarNudge {
+  /** "ready" | "none" | "unavailable" — render nothing for the latter two. */
+  status: string;
+  card: OscarNudgeCard | null;
+}

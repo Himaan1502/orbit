@@ -1,8 +1,10 @@
 package com.orbit.platform.ai.web.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.orbit.platform.ai.model.AiConversation;
 import com.orbit.platform.ai.model.AiMessage;
 import com.orbit.platform.ai.service.OscarResponse;
+import com.orbit.platform.ai.service.ProposedAction;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -54,5 +56,28 @@ public final class OscarDtos {
     /** Result of running a turn (or creating a conversation with an opening message). */
     public record TurnResponse(ConversationSummary conversation, OscarResponse response,
                                List<MessageView> newMessages) {
+    }
+
+    // ----- contextual cards (ADR-034) -----
+
+    /** {@code ready} carries a card; {@code none} / {@code unavailable} render nothing. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Nudge(String status, NudgeCard card) {
+        public static Nudge none() {
+            return new Nudge("none", null);
+        }
+
+        public static Nudge unavailable() {
+            return new Nudge("unavailable", null);
+        }
+
+        public static Nudge ready(NudgeCard card) {
+            return new Nudge("ready", card);
+        }
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record NudgeCard(String headline, String body, String why,
+                            ProposedAction proposedAction, Instant generatedAt) {
     }
 }

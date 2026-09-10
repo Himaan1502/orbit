@@ -13,15 +13,18 @@ import com.orbit.platform.common.exception.ApiException;
 import com.orbit.platform.identity.service.CurrentUserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 
 /**
  * Owns the {@code ai_conversations} / {@code ai_messages} lifecycle and drives a
@@ -45,21 +48,27 @@ public class ConversationService {
     private final AiConversationRepository conversations;
     private final AiMessageRepository messages;
     private final AiService ai;
+    private final OscarStreamOrchestrator streamOrchestrator;
     private final PolicyGuard policyGuard;
     private final CurrentUserService currentUser;
     private final Clock clock;
     private final TransactionTemplate tx;
+    private final Executor streamExecutor;
 
     public ConversationService(AiConversationRepository conversations, AiMessageRepository messages,
-                               AiService ai, PolicyGuard policyGuard, CurrentUserService currentUser,
-                               Clock clock, PlatformTransactionManager txManager) {
+                               AiService ai, OscarStreamOrchestrator streamOrchestrator,
+                               PolicyGuard policyGuard, CurrentUserService currentUser, Clock clock,
+                               PlatformTransactionManager txManager,
+                               @Qualifier("oscarStreamExecutor") Executor streamExecutor) {
         this.conversations = conversations;
         this.messages = messages;
         this.ai = ai;
+        this.streamOrchestrator = streamOrchestrator;
         this.policyGuard = policyGuard;
         this.currentUser = currentUser;
         this.clock = clock;
         this.tx = new TransactionTemplate(txManager);
+        this.streamExecutor = streamExecutor;
     }
 
     @Transactional(readOnly = true)
@@ -103,6 +112,59 @@ public class ConversationService {
 
     public TurnResponse turn(UUID conversationId, String message) {
         return runTurn(tx.execute(s -> requireOwned(conversationId)), message);
+    }
+
+    /**
+     * Streamed turn (ADR-033). Ownership / rate-limit / validation run
+     * synchronously (so a 404 / 429 / 400 is a normal JSON response); the turn
+     * itself runs on the {@code oscarStreamExecutor}, pushing SSE frames, and
+     * persists at the end exactly like {@link #runTurn}.
+     */
+    public SseEmitter streamTurn(UUID conversationId, String rawMessage) {
+        AiConversation c = tx.execute(s -> requireOwned(conversationId));
+        UUID userId = c.getUserId();
+        tx.executeWithoutResult(s -> policyGuard.checkDailyCap(userId));
+        String sanitized = policyGuard.sanitizeUserMessage(rawMessage);
+        if (sanitized.isBlank()) {
+            throw ApiException.badRequest("message is empty after sanitisation.");
+        }
+        List<ChatItem> prior = tx.execute(s -> priorTurns(c.getId()));
+
+        SseEmitter emitter = new SseEmitter(com.orbit.platform.ai.OscarWebConfig.SSE_TIMEOUT_MS);
+        SseStreamSink sink = new SseStreamSink(emitter);
+        emitter.onTimeout(emitter::complete);
+        emitter.onError(e -> { });
+
+        // the turn runs on the SSE executor — propagate the caller's SecurityContext
+        // so ContextBuilder / ToolRegistry / MutationProposer resolve the same user.
+        streamExecutor.execute(new org.springframework.security.concurrent.DelegatingSecurityContextRunnable(() -> {
+            try {
+                TurnResult result = streamOrchestrator.stream(
+                        new AiTurn(userId, c.getId(), prior, sanitized), sink);
+                boolean persisted = false;
+                String messageId = null;
+                if (result.persistable() && !sink.isDead()) {
+                    Persisted p = tx.execute(s -> persist(c.getId(), sanitized, result));
+                    messageId = p.messages().get(1).id().toString();
+                    persisted = true;
+                    log.info("event=oscar.turn.stream user_id={} conversation_id={} provider={} model={} "
+                                    + "prompt_tokens={} completion_tokens={} outcome=ok",
+                            userId, c.getId(), result.provider(), result.model(),
+                            result.usage().promptTokens(), result.usage().completionTokens());
+                } else {
+                    log.info("event=oscar.turn.stream user_id={} conversation_id={} persisted=false",
+                            userId, c.getId());
+                }
+                sink.done(persisted, messageId);
+                emitter.complete();
+            } catch (RuntimeException e) {
+                log.error("event=oscar.turn.stream.failed conversation_id={}", c.getId(), e);
+                sink.error(true, "OSCAR is temporarily unavailable.");
+                sink.done(false, null);
+                emitter.complete();
+            }
+        }));
+        return emitter;
     }
 
     // ---------------------------------------------------------------------

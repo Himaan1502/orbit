@@ -51,7 +51,7 @@ class GeminiProviderTest {
 
     private GeminiProvider provider() {
         String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
-        AiProperties props = new AiProperties("gemini", "groq", 50, 24000, 2000, 3, 2000, 5000,
+        AiProperties props = new AiProperties("gemini", "groq", 50, 24000, 2000, 3, 12, 2000, 5000,
                 new AiProperties.Gemini("test-key", "gemini-3.6-flash", baseUrl),
                 new AiProperties.Groq("", "openai/gpt-oss-120b", "http://unused"));
         return new GeminiProvider(new ObjectMapper(), props);
@@ -88,6 +88,20 @@ class GeminiProviderTest {
         assertThat(c.hasToolCalls()).isTrue();
         assertThat(c.toolCalls()).singleElement()
                 .satisfies(call -> assertThat(call.name()).isEqualTo("get_today_plan"));
+    }
+
+    @Test
+    void streamsTextDeltasAndAssemblesUsage() {
+        body.set("data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello \"}]}}]}\n\n"
+                + "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"world\"}]},"
+                + "\"finishReason\":\"STOP\"}],"
+                + "\"usageMetadata\":{\"promptTokenCount\":11,\"candidatesTokenCount\":2}}\n\n");
+        StringBuilder got = new StringBuilder();
+        AiCompletion c = provider().completeStream(request(), got::append);
+        assertThat(got.toString()).isEqualTo("Hello world");
+        assertThat(c.text()).isEqualTo("Hello world");
+        assertThat(c.usage().promptTokens()).isEqualTo(11);
+        assertThat(c.usage().completionTokens()).isEqualTo(2);
     }
 
     @Test
