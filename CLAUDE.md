@@ -312,6 +312,7 @@ command / driving the flow.
 | Tests | ✅ | `apps/api` `./gradlew clean build` — `BUILD SUCCESSFUL`, **204 tests** (0 failures), Checkstyle 0, SpotBugs 0. `apps/auth` `build` — 12 tests. `apps/web` `build` (27 routes) / `lint` / `prettier` / `tsc` clean, `vitest` **17/17** (+`OscarNudge.test.tsx`). |
 | Full browser E2E | ✅ | 2026-09-10 — Playwright vs the compose stack (real `gemini-3.6-flash`): `/oscar` → ask a question → **the `▍` caret shows, answer text appears and grows before the turn finishes**, caret clears on completion, the answer persists across a reload. Contextual card: renders on `/today` + `/objectives/[id]` (or is silently absent on a `SKIP`), **Dismiss sticks across a reload**, **no error surface** on either page. |
 | `docker compose` (all 5) | ✅ | 2026-09-10 — `build orbit-api orbit-web` → `up -d` (**no `-v`**) → all 5 `Up (healthy)`; **no new migration** (still Flyway V10), pilot account `himaanshu15028@gmail.com` **row intact** (`active`). E2E `@orbit.local` users cleaned out afterward. Torn down with `docker compose down` (no `-v`). |
+| CI | ✅ | 2026-09-10 — [run #34430743402](https://github.com/Himaan1502/orbit/actions/runs/34430743402) (`d1e5c9f`) on `main`: **Frontend, Backend, Auth Server all green**. |
 
 Not in scope for this pass and still open: streaming for contextual nudges
 (cached, latency hidden), skill / roadmap / Career nudge surfaces, a nudge
