@@ -1,0 +1,12 @@
+# Runs the ORBIT backup nightly at 02:30 UTC (08:00 IST). ADR-035 §9.
+#   /etc/systemd/system/orbit-backup.timer  →  systemctl enable --now orbit-backup.timer
+[Unit]
+Description=Nightly ORBIT database backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

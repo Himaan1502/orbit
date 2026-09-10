@@ -1,4 +1,12 @@
-FROM node:20-alpine AS build
+# Multi-stage build for the ORBIT web BFF (Next.js standalone).
+#
+# The `build` stage is pinned to the *build* platform (the CI runner, amd64).
+# The web app has no native runtime dependencies (no sharp / no native addons —
+# see apps/web/package.json), so `next build`'s `.next/standalone` output is
+# portable JavaScript and runs unchanged on the linux/arm64 target (the OCI
+# Ampere A1 host). The runtime stage resolves to the target platform and only
+# copies build output in. See ADR-035 §3.
+FROM --platform=$BUILDPLATFORM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -6,6 +14,7 @@ COPY . .
 RUN npm run build
 
 FROM node:20-alpine
+LABEL org.opencontainers.image.source="https://github.com/Himaan1502/orbit"
 WORKDIR /app
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static

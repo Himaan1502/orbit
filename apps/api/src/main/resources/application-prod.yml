@@ -17,8 +17,22 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # Full OIDC discovery + issuer-claim validation in production.
-          issuer-uri: ${OIDC_ISSUER_URI}
+          # Split-horizon issuer (ADR-035 §5). The API validates RS256
+          # signatures against the auth server's JWKS over the internal
+          # container network (no public round-trip, no OIDC-discovery race at
+          # startup), while `issuer-uri` here is used *only* to add the
+          # issuer-claim validator — Spring Boot skips discovery when
+          # `jwk-set-uri` is also present. On the VM:
+          #   OIDC_JWK_SET_URI = http://orbit-auth:9000/oauth2/jwks   (internal)
+          #   OIDC_ISSUER_URI  = https://auth.<vm-ip>.nip.io          (the `iss` claim)
+          # Local/compose default keeps both pointing at localhost:9000.
+          jwk-set-uri: ${OIDC_JWK_SET_URI:http://localhost:9000/oauth2/jwks}
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:9000}
+
+server:
+  # Behind Caddy (TLS terminated at the proxy). Honour X-Forwarded-Proto/Host so
+  # the app sees requests as HTTPS and generates correct absolute URLs. ADR-035 §5.
+  forward-headers-strategy: framework
 
 management:
   endpoint:

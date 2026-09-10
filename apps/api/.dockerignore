@@ -1,0 +1,20 @@
+# Keep the build context small — the image's own Gradle build owns these.
+build
+bin
+.gradle
+.idea
+*.log
+boot-output.log
+boot-err.log
+boot.log
+
+# Never bake local env / secrets into the image
+.env
+.env.*
+
+# VCS / tooling
+.git
+.gitignore
+Dockerfile
+.dockerignore
+README.md

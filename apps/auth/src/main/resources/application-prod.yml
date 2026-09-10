@@ -1,0 +1,26 @@
+# Production profile for the ORBIT auth server (ADR-035 — single-VM OCI deploy).
+#
+# Everything substantive is already env-driven in application.yml (issuer,
+# DB, WEB_CLIENT_SECRET, AUTH_KEYSTORE_SECRET, redirect URIs). This profile only
+# tightens what changes between dev and a real host.
+
+server:
+  # TLS is terminated at Caddy; honour X-Forwarded-Proto/Host so redirects,
+  # form actions and the OIDC metadata document are generated as https://.
+  # The issuer identifier itself is pinned separately via OIDC_ISSUER_URI.
+  forward-headers-strategy: framework
+
+spring:
+  thymeleaf:
+    # Server-rendered /login and /signup — cache templates in production.
+    cache: true
+
+management:
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    com.orbit.auth: INFO
+    org.springframework.security: WARN

@@ -1,0 +1,121 @@
+# Production overlay for the single-VM OCI deployment — ADR-035.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
+#
+# The base docker-compose.yml is unchanged and still drives local development.
+# This overlay:
+#   - swaps the three built services for prebuilt GHCR arm64 images (no build
+#     toolchain on the VM),
+#   - closes the Postgres/Redis host ports (`!override []` replaces the base
+#     list rather than concatenating — Compose >= 2.24),
+#   - adds restart policies, JVM/Node memory caps for the 12 GB A1 host,
+#   - points every issuer/redirect/CORS value at the real https:// hostnames,
+#     sourced from /opt/orbit/.env (chmod 600) via ${VAR} interpolation,
+#   - adds Caddy for TLS termination + host-based routing.
+#
+# .env on the VM must define: POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD
+# REDIS_PASSWORD WEB_CLIENT_SECRET AUTH_KEYSTORE_SECRET SESSION_SECRET
+# OIDC_ISSUER_URI OIDC_INTERNAL_ISSUER_URI WEB_REDIRECT_URI WEB_POST_LOGOUT_URI
+# WEB_PUBLIC_URL CORS_ORIGINS ORBIT_DOMAIN ACME_EMAIL ORBIT_IMAGE_TAG
+# GEMINI_API_KEY GROQ_API_KEY (see .env.prod.example).
+
+services:
+  orbit-db:
+    restart: unless-stopped
+    ports: !override []
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - max_connections=50
+
+  orbit-redis:
+    restart: unless-stopped
+    ports: !override []
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru
+
+  orbit-auth:
+    build: !reset null
+    image: ghcr.io/himaan1502/orbit-auth:${ORBIT_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports: !override []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI}
+      WEB_REDIRECT_URI: ${WEB_REDIRECT_URI}
+      WEB_POST_LOGOUT_URI: ${WEB_POST_LOGOUT_URI}
+      # -Xmx384m keeps the auth server comfortably inside its slice of 12 GB.
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=40 -Xmx384m"
+
+  orbit-api:
+    build: !reset null
+    image: ghcr.io/himaan1502/orbit-api:${ORBIT_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports: !override []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Split-horizon issuer (ADR-035 §5): signatures validated against the auth
+      # server's JWKS on the internal network; the public URL is only the `iss`
+      # claim string. No OIDC discovery round-trip at startup.
+      OIDC_JWK_SET_URI: http://orbit-auth:9000/oauth2/jwks
+      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=55 -Xmx1g"
+
+  orbit-web:
+    build: !reset null
+    image: ghcr.io/himaan1502/orbit-web:${ORBIT_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports: !override []
+    environment:
+      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI}
+      OIDC_INTERNAL_ISSUER_URI: ${OIDC_INTERNAL_ISSUER_URI:-http://orbit-auth:9000}
+      WEB_REDIRECT_URI: ${WEB_REDIRECT_URI}
+      WEB_POST_LOGOUT_URI: ${WEB_POST_LOGOUT_URI}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL}
+      API_BASE_URL: http://orbit-api:8080
+      WEB_SECURE_COOKIES: "true"
+      NODE_OPTIONS: "--max-old-space-size=384"
+
+  orbit-caddy:
+    image: caddy:2-alpine
+    container_name: orbit-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      ORBIT_DOMAIN: ${ORBIT_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - orbit-web
+      - orbit-api
+      - orbit-auth
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - orbit-network
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -8,6 +8,7 @@ node_modules/
 /apps/web/out/
 /apps/api/build/
 /apps/api/bin/
+/apps/auth/bin/
 *.jar
 *.war
 *.class
@@ -49,6 +50,11 @@ playwright-report/
 
 # Docker
 docker-compose.override.yml
+
+# Database backups / dumps — never commit real pilot data (ADR-035)
+backups/
+*.dump
+*.sql.gz
 
 # Gradle
 .gradle/
