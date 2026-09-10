@@ -463,3 +463,25 @@ store (Spring Session + Redis or JDBC) for the auth server's login UI, and a
 single externally-resolvable HTTPS issuer URL.
 
 **Why not now.** Single instance, local only.
+
+---
+
+## Ops — Diagnose the recurring Docker Desktop wedge (Windows/WSL2)
+
+**Context.** Docker Desktop on the dev machine wedges mid-session — `docker
+version` times out (exit 124), sometimes the Linux engine pipe is simply
+absent. Recurred at M0, M2, M4, and repeatedly on 2026-09-10. On 2026-09-10 a
+force-kill + relaunch caused Docker Desktop to **recreate the WSL2 data disk**,
+destroying the un-backed-up local pilot database
+([`incidents.md`](incidents.md)).
+
+**Deferred work.** Actually root-cause it rather than restart-and-continue:
+WSL2 backend memory/disk limits (`.wslconfig`), Docker Desktop resource
+allocation, a Desktop auto-update landing mid-session, Windows fast-startup
+interaction, disk pressure on `C:`. Until then: `scripts/backup-local.sh`
+before every risky operation is the mitigation, and a force-kill of Docker
+Desktop is treated as a data-loss risk, not routine.
+
+**Why not now.** M8a (deployment) is the priority; once ORBIT is on the VM with
+nightly off-box backups, the local machine stops being a single point of
+failure and this drops in urgency.

@@ -111,18 +111,23 @@ Merge to `main` → CI publishes the first arm64 images to GHCR.
 
 ### Phase 1 — Local backup (BEFORE any migration or infra touching data)
 
-1. `pg_dump -Fc` the whole `orbit_db` from the running `orbit-db` container →
-   `backups/orbit-<UTC-timestamp>.dump` locally.
-2. Confirm non-empty, sane size.
-3. **Restore test:** spin a throwaway `postgres:16-alpine` container, `pg_restore`
-   into it, assert: both `orbit` and `auth` schemas present; row counts for
-   `auth.users`, `orbit.objectives`, `orbit.skill_assessments`,
-   `orbit.projects`, `orbit.evidence`, `ai_conversations`, `ai_messages` match
-   the source. Tear the throwaway down (no `-v` needed — it's throwaway).
-4. Keep the dump. This is the rollback baseline.
+> **SATISFIED 2026-09-10.** The original local pilot DB was lost to a Docker
+> Desktop data-disk recreation ([`incidents.md`](incidents.md)) before this
+> phase ran. After a fresh signup, `scripts/restore-test-local.sh` produced and
+> **restore-verified** `backups/orbit-local-20260910T173702Z.dump` — dump valid
+> (`pg_restore --list` OK), restored into a throwaway container, row-count
+> parity **PASS** (`auth.users` 1, `auth.signing_keys` 1, all domain tables 0 —
+> a clean fresh account). That dump is the migration source + rollback baseline
+> for Phase 3. Nothing further to do here.
+>
+> Going forward, `scripts/backup-local.sh` is the standing one-command backup
+> (documented in the root README); re-run `restore-test-local.sh` before any
+> migration test.
 
-**Verify:** show you the dump path/size + the restore-test row-count diff (must
-be zero).
+Original intent (kept for reference): `pg_dump -Fc` the whole `orbit_db`;
+confirm non-empty; restore into a throwaway `postgres:16-alpine` and assert
+row-count parity for the load-bearing tables; keep the dump as the rollback
+baseline.
 
 ### Phase 2 — Provision the VM (CLI, billable-resource step — needs your "go")
 

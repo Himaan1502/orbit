@@ -11,7 +11,8 @@ Step-by-step: [`../docs/engineering/M8a-deployment-scope-and-runbook.md`](../doc
 | `orbit.service` | VM systemd | `docker compose pull && up -d` on boot; `down` on shutdown. `enable --now`. |
 | `orbit-backup.service` + `.timer` | VM systemd | Nightly 02:30 UTC → `backup.sh`. |
 | `backup.sh` | VM | `pg_dump` (whole DB) → OCI Object Storage via **instance principal** (no creds on the VM); 14 local copies kept. |
-| `local-backup-and-restore-test.sh` | dev machine | Runbook **Phase 1**: dump the local DB, restore into a throwaway container, assert row-count parity. Never touches the real `postgres_data` volume. |
+| `../scripts/backup-local.sh` | dev machine | Standing one-command whole-DB dump + archive validation. Run before anything risky. |
+| `../scripts/restore-test-local.sh` | dev machine | Dump **and prove it restores** — throwaway container + row-count parity. Satisfies runbook Phase 1. |
 
 ## The deploy bundle on the VM (`/opt/orbit/`)
 

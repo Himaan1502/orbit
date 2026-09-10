@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Runbook Phase 1 — full local backup + a REAL restore test. ADR-035 §9.
+# Prove the local ORBIT database dumps AND restores cleanly. ADR-035 §9.
+# Also satisfies runbook Phase 1 (the migration-source backup + restore proof).
 #
 # 1. pg_dump the running local orbit-db (whole DB: `orbit` + `auth` schemas).
 # 2. Assert the dump is a valid non-empty custom-format archive.
@@ -7,12 +8,15 @@
 # 4. Diff row counts for the load-bearing tables — source vs restored — and
 #    fail on any mismatch.
 # 5. Tear the throwaway container down (its own volume, never `-v` on the real
-#    stack — see docs/engineering/... [[orbit-compose-no-volume-wipe]]).
+#    stack — see [[orbit-compose-no-volume-wipe]]).
+#
+# For a quick everyday dump without the restore test: ./scripts/backup-local.sh
 #
 # Prereqs: Docker healthy; the local ORBIT stack up (orbit-db running).
 # Nothing here writes to the real postgres_data volume.
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
 BACKUP_DIR="${BACKUP_DIR:-$(pwd)/backups}"
 PGUSER_LOCAL="${POSTGRES_USER:-orbit_user}"
 PGDB_LOCAL="${POSTGRES_DB:-orbit_db}"
@@ -31,8 +35,9 @@ echo "    ${DUMP}  (${SIZE} bytes)"
 echo "==> 2. validate archive"
 head -c 5 "${DUMP}" | grep -q PGDMP || { echo "FAIL: not a PGDMP archive"; exit 1; }
 [ "${SIZE}" -gt 4096 ] || { echo "FAIL: implausibly small"; exit 1; }
-docker run --rm -i -v "${DUMP}:/d.dump:ro" postgres:16-alpine \
-  pg_restore --list /d.dump > /dev/null && echo "    pg_restore --list OK"
+# Stream via stdin, not a bind mount — avoids Git-Bash/Windows path translation.
+docker run --rm -i postgres:16-alpine sh -c 'cat > /tmp/d && pg_restore --list /tmp/d' \
+  < "${DUMP}" > /dev/null && echo "    pg_restore --list OK"
 
 echo "==> 3. restore into throwaway container ${TMP_CTR}"
 docker run -d --name "${TMP_CTR}" -e POSTGRES_PASSWORD="${TMP_PW}" \
