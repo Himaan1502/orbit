@@ -22,9 +22,12 @@ device, real TLS, ~~existing pilot account + all history intact~~ (lost
 | Security list `orbit-sl` (ingress 22/80/443) | `ocid1.securitylist.oc1.ap-mumbai-1.aaaaaaaadimo3f27uhbqifj4rsrltsek5sz32i6346hkgiuhc2fobn6chjha` | 2026-09-10 | $0 |
 | Public subnet `orbit-subnet` (10.0.0.0/24, regional) | `ocid1.subnet.oc1.ap-mumbai-1.aaaaaaaabinpuds75lxpttc2eqif6g7f5ghshxb33gfq6ef4vquanenry2mq` | 2026-09-10 | $0 |
 | AD | `LJCm:AP-MUMBAI-1-AD-1` | — | — |
-| Reserved public IP (Group B) | _pending_ | | |
+| Reserved public IP `orbit-ip` — **144.24.114.220** | `ocid1.publicip.oc1.ap-mumbai-1.amaaaaaaicfyggya3qsp6stemtkzyaur4yse6yjtabh2amblejiuiew6sa4q` | 2026-09-11 | $0 (free while attached; attaches in Group C) |
 | Compute `orbit-vm` (Group C) | _pending_ | | |
 | Object Storage bucket + dynamic group + policy (Group D) | _pending_ | | |
+
+**nip.io hostnames (from the reserved IP above):**
+`web.144.24.114.220.nip.io` · `api.144.24.114.220.nip.io` · `auth.144.24.114.220.nip.io`
 
 Tenancy `orbit-platform` (`OCID …aaaaaaaa27ytjp7jyreoaslgtv4blrjwoxf3sxdjnmkcxt5rvioc7ijyv77a`,
 home region BOM). **Not** a locked Always Free tenancy — paid shapes are
