@@ -42,8 +42,12 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core")
 
-    // Observability
+    // Observability. Structured JSON logs in prod (ADR-010) — logback-spring.xml's
+    // `prod` springProfile block. NOT ch.qos.logback.contrib (abandoned ~2017,
+    // predates Logback's current Joran/model config engine) — logstash-logback-encoder
+    // is the actively-maintained standard for this with Spring Boot 3.x / Logback 1.4.x.
     implementation("io.micrometer:micrometer-registry-prometheus")
+    implementation("net.logstash.logback:logstash-logback-encoder:7.4")
 
     // API Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
