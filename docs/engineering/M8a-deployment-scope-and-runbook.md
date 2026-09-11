@@ -168,8 +168,14 @@ verification output before the next starts (milestone-process rule).
   three images; result arch confirmed `linux/arm64`. A `--no-cache` cold build
   of `orbit-auth` ran `./gradlew bootJar` in **28s** (native amd64 build stage,
   not emulated arm64 — the `--platform=$BUILDPLATFORM` split works).
-- ⏳ CI green on the branch — pending push.
-- Merge to `main` → CI publishes the first arm64 images to GHCR.
+- ✅ **2026-09-11** — merged to `main` (`b0e1f53`); CI run
+  [34563142706](https://github.com/Himaan1502/orbit/actions/runs/34563142706)
+  **all 6 jobs green**: Frontend, Auth Server, Backend + the three
+  `build-images` matrix jobs (first run ever). Confirmed real pushes from the
+  job logs, not just a green checkmark:
+  `ghcr.io/himaan1502/orbit-{api,auth,web}:latest` and `:sha-b0e1f53`, digests
+  `2170d1d8…`, `8cfe32af…`, `138420e9…` respectively. Prune step ran (nothing
+  to prune yet — first version of each package). Packages private, as decided.
 
 ### Phase 1 — Local backup (BEFORE any migration or infra touching data)
 
