@@ -23,8 +23,15 @@ device, real TLS, ~~existing pilot account + all history intact~~ (lost
 | Public subnet `orbit-subnet` (10.0.0.0/24, regional) | `ocid1.subnet.oc1.ap-mumbai-1.aaaaaaaabinpuds75lxpttc2eqif6g7f5ghshxb33gfq6ef4vquanenry2mq` | 2026-09-10 | $0 |
 | AD | `LJCm:AP-MUMBAI-1-AD-1` | — | — |
 | Reserved public IP `orbit-ip` — **144.24.114.220** | `ocid1.publicip.oc1.ap-mumbai-1.amaaaaaaicfyggya3qsp6stemtkzyaur4yse6yjtabh2amblejiuiew6sa4q` | 2026-09-11 | $0 (free while attached; attaches in Group C) |
-| Compute `orbit-vm` (Group C) | _pending_ | | |
+| Compute `orbit-vm` — VM.Standard.A1.Flex, 2 OCPU/12GB, Ubuntu 24.04.08.25 aarch64, 120GB boot | `ocid1.instance.oc1.ap-mumbai-1.anrg6ljricfyggycnsrmx2m6d7zj7igjeppbj43s4ssgosl5gwrzqbsbmeca` | 2026-09-11 | $0 (= exact A1 allowance) |
 | Object Storage bucket + dynamic group + policy (Group D) | _pending_ | | |
+
+**orbit-vm networking:** primary VNIC `…abrg6ljrflwl6eedbveg733mnzsigm76bnerrsnwkgovbvmbspxagsaekluq`,
+private IP `10.0.0.2`, reserved public IP `144.24.114.220` **ASSIGNED** to it
+(`oci network public-ip update --private-ip-id …`). SSH: `ubuntu@144.24.114.220`,
+key `orbit-vm` (owner-held private half). cloud-init ran at launch —
+**not yet SSH-verified** (Claude has no private key; owner to confirm
+`docker --version` / `ufw status` / `cloud-init status`).
 
 **nip.io hostnames (from the reserved IP above):**
 `web.144.24.114.220.nip.io` · `api.144.24.114.220.nip.io` · `auth.144.24.114.220.nip.io`
