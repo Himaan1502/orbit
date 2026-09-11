@@ -26,17 +26,15 @@
         </root>
     </springProfile>
 
-    <!-- Structured JSON for production -->
+    <!-- Structured JSON for production (ADR-010). logstash-logback-encoder — see
+         build.gradle.kts comment for why, not ch.qos.logback.contrib. Emits one JSON
+         object per line (timestamp, level, logger, message, thread, and any MDC
+         entries — including the %X{requestId} set for the dev/test appenders'
+         equivalent request-correlation field — automatically, no extra config). -->
     <springProfile name="prod">
         <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
-                <layout class="ch.qos.logback.contrib.json.classic.JsonLayout">
-                    <jsonFormatter class="ch.qos.logback.contrib.jackson.JacksonJsonFormatter">
-                        <prettyPrint>false</prettyPrint>
-                    </jsonFormatter>
-                    <timestampFormat>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampFormat>
-                    <appendLineSeparator>true</appendLineSeparator>
-                </layout>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampPattern>
             </encoder>
         </appender>
         <root level="INFO">
