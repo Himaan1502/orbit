@@ -207,8 +207,29 @@ Both are standalone Gradle projects — run from their own directory.
 |---------|-------------|
 | `docker compose up -d` | Start all services |
 | `docker compose up -d orbit-db orbit-redis` | Infrastructure only |
-| `docker compose down` | Stop all services |
+| `docker compose down` | Stop all services (**never** `-v` — that deletes the DB volume) |
 | `docker compose logs -f orbit-api` | Follow API logs |
+
+### Backups
+
+The local `postgres_data` volume is the only copy of your data. Back it up
+before anything risky — Docker upgrades, `compose down`, migration testing, a
+reboot you're unsure about. (On 2026-09-10 a Docker Desktop force-restart
+recreated the WSL2 data disk and wiped an un-backed-up database — see
+[`docs/engineering/incidents.md`](docs/engineering/incidents.md).)
+
+| Command | Description |
+|---------|-------------|
+| `./scripts/backup-local.sh` | Whole-DB dump → `backups/orbit-local-<ts>.dump`, archive validated, last 20 kept |
+| `./scripts/restore-test-local.sh` | Dump **and prove it restores** — restore into a throwaway container + row-count parity |
+
+Restore a dump into the running stack:
+
+```bash
+docker compose exec -T orbit-db \
+  pg_restore -U orbit_user -d orbit_db --clean --if-exists --no-owner \
+  < backups/orbit-local-<timestamp>.dump
+```
 
 ### Service ports
 

@@ -1,0 +1,13 @@
+# ORBIT nightly backup — ADR-035 §9. Install alongside orbit-backup.timer.
+#   /etc/systemd/system/orbit-backup.service
+[Unit]
+Description=ORBIT database backup (pg_dump -> OCI Object Storage)
+Requires=orbit.service
+After=orbit.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/orbit
+ExecStart=/opt/orbit/deploy/backup.sh
+Nice=10

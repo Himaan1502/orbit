@@ -102,3 +102,82 @@ jobs:
 
       - name: SpotBugs
         run: ./gradlew spotbugsMain || true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Publish linux/arm64 container images to GHCR for the OCI Ampere A1 deploy.
+  # ADR-035 §3. Runs only on push to main, after the three check jobs pass.
+  #
+  # The Dockerfiles pin their build stage to $BUILDPLATFORM (amd64 runner) so
+  # compilation is native; only the thin runtime stage is arm64 (assembled
+  # under QEMU in seconds — no compilation). arm64-only: the sole consumer is
+  # the VM; local dev builds locally. Tags: `latest` + the short SHA. A prune
+  # step keeps the private-package footprint inside the 500 MB Free allowance.
+  # ─────────────────────────────────────────────────────────────────────────
+  build-images:
+    name: Build & push images
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [frontend, backend, auth]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: api
+            context: apps/api
+          - app: auth
+            context: apps/auth
+          - app: web
+            context: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/orbit-${{ matrix.app }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build & push (linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=orbit-${{ matrix.app }}
+          cache-to: type=gha,scope=orbit-${{ matrix.app }},mode=max
+
+      # Bounds each private package to its 3 newest image versions (~3 pushes of
+      # rollback headroom) — keeps all three packages inside the 500 MB GHCR
+      # Free allowance. continue-on-error: a failed prune only means storage
+      # creeps; if GITHUB_TOKEN can't delete user-namespace versions we switch
+      # the packages to public (ADR-035 §3.4) rather than add a PAT secret.
+      - name: Prune old image versions (keep newest 3)
+        continue-on-error: true
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: orbit-${{ matrix.app }}
+          package-type: container
+          min-versions-to-keep: 3

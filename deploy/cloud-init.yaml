@@ -1,0 +1,69 @@
+#cloud-config
+# ORBIT VM bootstrap — ADR-035 §1/§6. Ubuntu 24.04 (aarch64), OCI Ampere A1.
+#
+# Passed as user_data at instance launch. Installs Docker + the compose plugin,
+# creates /opt/orbit owned by the `ubuntu` user, and closes the host firewall
+# to 22/80/443 (the OCI Security List does the same at the network edge —
+# ADR-035 §6, neither layer trusted to cover the other).
+#
+# It does NOT deploy the stack — that is a manual step once images are in GHCR
+# and the reserved IP / nip.io names are known (runbook Phase 3).
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - ufw
+  - fail2ban
+  - unattended-upgrades
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/90-orbit-hardening.conf
+    permissions: "0644"
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+      KbdInteractiveAuthentication no
+
+  - path: /etc/docker/daemon.json
+    permissions: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": { "max-size": "10m", "max-file": "3" }
+      }
+
+runcmd:
+  # --- Docker CE + compose plugin (official repo, arm64) ---
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - >
+    echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc]
+    https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable"
+    > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+  - usermod -aG docker ubuntu
+
+  # --- /opt/orbit skeleton ---
+  - mkdir -p /opt/orbit/deploy /opt/orbit/docker/postgres /opt/orbit/backups
+  - chown -R ubuntu:ubuntu /opt/orbit
+
+  # --- Host firewall: 22 / 80 / 443 only ---
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+
+  # --- Auto security updates + SSH hardening ---
+  - dpkg-reconfigure -f noninteractive unattended-upgrades
+  - systemctl restart ssh
+
+final_message: "ORBIT VM ready. Docker $(docker --version). Deploy stack manually — runbook Phase 3."

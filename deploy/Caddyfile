@@ -1,0 +1,33 @@
+# ORBIT reverse proxy + automatic TLS — ADR-035 §5.
+#
+# Three subdomains of a single nip.io wildcard host, one Let's Encrypt cert each
+# (HTTP-01 on :80). ORBIT_DOMAIN / ACME_EMAIL come from the compose environment
+# (which reads /opt/orbit/.env).
+#
+# Switching to a real domain later is ONLY this file plus the matching .env
+# values (OIDC_ISSUER_URI / WEB_REDIRECT_URI / WEB_PUBLIC_URL / CORS_ORIGINS)
+# and one `docker compose up -d` — no image rebuild, no code change. ADR-035 §5.
+
+{
+	email {$ACME_EMAIL}
+	# Uncomment to exercise issuance against staging before going live:
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+web.{$ORBIT_DOMAIN} {
+	reverse_proxy orbit-web:3000
+	encode zstd gzip
+}
+
+api.{$ORBIT_DOMAIN} {
+	# flush_interval -1 disables response buffering so OSCAR's SSE stream
+	# (text/event-stream, ADR-033) reaches the browser token-by-token. API
+	# responses are otherwise small JSON, so this costs nothing.
+	reverse_proxy orbit-api:8080 {
+		flush_interval -1
+	}
+}
+
+auth.{$ORBIT_DOMAIN} {
+	reverse_proxy orbit-auth:9000
+}
