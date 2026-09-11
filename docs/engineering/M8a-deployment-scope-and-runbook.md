@@ -2,8 +2,9 @@
 
 **Status:** In progress. Paired with
 [ADR-035](../adr/ADR-035-single-vm-oci-deployment-topology.md). Phase 0 done +
-verified; Phase 1 satisfied; **Phase 2 Resource Group A provisioned 2026-09-10**
-(networking only — all $0). Phases B/C/D pending per-resource approval.
+verified; Phase 1 satisfied. **Phase 2 Groups A–D all provisioned** (networking,
+reserved IP, the A1 VM — owner-verified over SSH, backup bucket + IAM), all
+$0, all per-resource approved. Next: Phase 3 — deploy the stack onto `orbit-vm`.
 
 **Goal:** ORBIT always-on at `https://web.<vm-ip>.nip.io`, reachable from any
 device, real TLS, ~~existing pilot account + all history intact~~ (lost
@@ -24,14 +25,25 @@ device, real TLS, ~~existing pilot account + all history intact~~ (lost
 | AD | `LJCm:AP-MUMBAI-1-AD-1` | — | — |
 | Reserved public IP `orbit-ip` — **144.24.114.220** | `ocid1.publicip.oc1.ap-mumbai-1.amaaaaaaicfyggya3qsp6stemtkzyaur4yse6yjtabh2amblejiuiew6sa4q` | 2026-09-11 | $0 (free while attached; attaches in Group C) |
 | Compute `orbit-vm` — VM.Standard.A1.Flex, 2 OCPU/12GB, Ubuntu 24.04.08.25 aarch64, 120GB boot | `ocid1.instance.oc1.ap-mumbai-1.anrg6ljricfyggycnsrmx2m6d7zj7igjeppbj43s4ssgosl5gwrzqbsbmeca` | 2026-09-11 | $0 (= exact A1 allowance) |
-| Object Storage bucket + dynamic group + policy (Group D) | _pending_ | | |
+| Object Storage bucket `orbit-db-backups` (namespace `bmwhm54ytiu6`) | `ocid1.bucket.oc1.ap-mumbai-1.aaaaaaaalvhddxdpgg7dlgr3r3bo4zfsjejp5ztq26zmns3iq2wwdgad2kzq` | 2026-09-11 | $0 (Standard tier, within 20GB allowance; NoPublicAccess) |
+| Dynamic group `orbit-vm-dynamic-group` (matches `orbit-vm` instance OCID) | `ocid1.dynamicgroup.oc1..aaaaaaaaze6kmbhcrgopfkh5qlym2z5re3wh5cl6ahqkqn4qhvjjk7icfcka` | 2026-09-11 | $0 (IAM) |
+| Policy `orbit-vm-backup-policy` — dynamic group may `manage objects` **only** where `target.bucket.name='orbit-db-backups'` | `ocid1.policy.oc1..aaaaaaaalhvhskhnhfjogvyneqflyy3piw33em5b4n42fipz5nu6d3tnr3lq` | 2026-09-11 | $0 (IAM) |
 
 **orbit-vm networking:** primary VNIC `…abrg6ljrflwl6eedbveg733mnzsigm76bnerrsnwkgovbvmbspxagsaekluq`,
 private IP `10.0.0.2`, reserved public IP `144.24.114.220` **ASSIGNED** to it
 (`oci network public-ip update --private-ip-id …`). SSH: `ubuntu@144.24.114.220`,
-key `orbit-vm` (owner-held private half). cloud-init ran at launch —
-**not yet SSH-verified** (Claude has no private key; owner to confirm
-`docker --version` / `ufw status` / `cloud-init status`).
+key `orbit-vm` (owner-held private half). **Owner-verified 2026-09-11**:
+`cloud-init status` done (12 modules, 0 failures), `ufw` active with exactly
+22/80/443 tcp+v6 + default-deny, `/opt/orbit` present and `ubuntu`-owned,
+`ubuntu` in the `docker` group, Docker 29.8.0 + Compose v5.5.1 installed.
+
+**Deferred from Group D:** a bucket-side lifecycle rule (auto-expire objects
+after 14 days) needs an *additional* IAM grant —
+`Allow service objectstorage to manage object-family in compartment orbit`
+(lets the Object Storage service principal delete on the tenant's behalf) —
+that wasn't in the originally-approved Group D scope, so it was not created.
+Local retention (`backup.sh` keeps the newest 20) already caps growth; revisit
+bucket-side retention as its own small ask if wanted.
 
 **nip.io hostnames (from the reserved IP above):**
 `web.144.24.114.220.nip.io` · `api.144.24.114.220.nip.io` · `auth.144.24.114.220.nip.io`
